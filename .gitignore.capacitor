@@ -1,0 +1,4 @@
+# Capacitor native projects — regenerate with `bunx cap add ios/android`
+# Uncomment the lines below if you want to keep ios/android out of git
+# ios/
+# android/

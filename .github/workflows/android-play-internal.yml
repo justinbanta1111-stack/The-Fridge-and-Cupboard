@@ -1,0 +1,245 @@
+name: Android Play Internal
+
+# Builds a signed Android App Bundle (.aab) and uploads it to the
+# Google Play Console "internal" testing track whenever a semver release
+# tag is pushed (e.g. v1.2.3).
+#
+# Required GitHub repository secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64      Base64-encoded upload keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD    Keystore password (-storepass)
+#   ANDROID_KEY_ALIAS              Key alias (e.g. "upload")
+#   ANDROID_KEY_PASSWORD           Key password (-keypass)
+#   PLAY_SERVICE_ACCOUNT_JSON    Full JSON of a Google Play service account
+#                                with "Release manager" role on the app.
+#
+# How to trigger:
+#   git tag v1.0.0 && git push origin v1.0.0
+# Or run manually via "Run workflow" (workflow_dispatch).
+#
+# IMPORTANT: The very first .aab for this package MUST be uploaded manually
+# in the Play Console. After that, this workflow can publish to "internal"
+# on every tag.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'Override versionCode. Leave blank to use run number.'
+        required: false
+      track:
+        description: 'Play track (internal | alpha | beta | production)'
+        required: false
+        default: 'internal'
+
+concurrency:
+  group: android-play-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    name: Build signed AAB & upload to Play Console
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || 'com.thefridgeandcupboard.app' }}
+      PLAY_TRACK: ${{ github.event.inputs.track || 'internal' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: |
+          if [ ! -d "android" ]; then
+            echo "::error::android/ directory missing. Run 'npx cap add android' locally and commit."
+            exit 1
+          fi
+          npx cap sync android
+
+      - name: Derive versionCode
+        id: vcode
+        run: |
+          if [ -n "${{ github.event.inputs.version_code }}" ]; then
+            VC="${{ github.event.inputs.version_code }}"
+          else
+            VC="${{ github.run_number }}"
+          fi
+          echo "version_code=$VC" >> "$GITHUB_OUTPUT"
+          echo "Using versionCode=$VC"
+
+      - name: Derive versionName from tag
+        id: vname
+        run: |
+          REF="${GITHUB_REF##*/}"
+          if [[ "$REF" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            VN="${BASH_REMATCH[1]}"
+          else
+            VN="1.0.0"
+          fi
+          echo "version_name=$VN" >> "$GITHUB_OUTPUT"
+          echo "Using versionName=$VN"
+
+      - name: Patch android/app/build.gradle
+        run: |
+          GRADLE_FILE="android/app/build.gradle"
+          if [ ! -f "$GRADLE_FILE" ]; then
+            echo "::error::$GRADLE_FILE not found"; exit 1
+          fi
+          sed -i -E "s/(applicationId\s+)\"[^\"]+\"/\1\"${ANDROID_PACKAGE_NAME}\"/" "$GRADLE_FILE"
+          sed -i -E "s/(versionCode\s+)[0-9]+/\1${{ steps.vcode.outputs.version_code }}/" "$GRADLE_FILE"
+          sed -i -E "s/(versionName\s+)\"[^\"]+\"/\1\"${{ steps.vname.outputs.version_name }}\"/" "$GRADLE_FILE"
+          grep -E "applicationId|versionCode|versionName" "$GRADLE_FILE" | head -5
+
+      - name: Decode signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          KS_PATH="$RUNNER_TEMP/upload-keystore.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KS_PATH"
+          echo "KEYSTORE_PATH=$KS_PATH" >> "$GITHUB_ENV"
+
+      - name: Inject signingConfig into build.gradle
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          GRADLE_FILE="android/app/build.gradle"
+          if ! grep -q "signingConfigs {" "$GRADLE_FILE"; then
+            python3 - <<'PY'
+          import re
+          p = "android/app/build.gradle"
+          s = open(p).read()
+          block = """
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("KEYSTORE_PATH"))
+                      storePassword System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("KEY_ALIAS")
+                      keyPassword System.getenv("KEY_PASSWORD")
+                  }
+              }
+          """
+          s = re.sub(r"(android\s*\{)", r"\1" + block, s, count=1)
+          if re.search(r"buildTypes\s*\{[^}]*release\s*\{", s, re.S):
+              s = re.sub(r"(release\s*\{)", r"\1\n            signingConfig signingConfigs.release", s, count=1)
+          else:
+              s = re.sub(r"(buildTypes\s*\{)", r"\1\n        release {\n            signingConfig signingConfigs.release\n        }", s, count=1)
+          open(p, "w").write(s)
+          PY
+          fi
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build signed release AAB
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon clean bundleRelease
+          ls -la app/build/outputs/bundle/release/
+
+      - name: Locate AAB
+        id: aab
+        run: |
+          AAB_PATH=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+          if [ -z "$AAB_PATH" ]; then
+            echo "::error::No .aab produced"; exit 1
+          fi
+          echo "aab_path=$AAB_PATH" >> "$GITHUB_OUTPUT"
+          echo "AAB: $AAB_PATH"
+
+      - name: Upload AAB to Play Console internal track
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          SA_PATH="$RUNNER_TEMP/play-service-account.json"
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$SA_PATH"
+
+          # Install bundletool and google-play-uploader via Python
+          pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+          python3 - <<PY
+          import json
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+
+          package_name = "${{ env.ANDROID_PACKAGE_NAME }}"
+          aab_path = "${{ steps.aab.outputs.aab_path }}"
+          track = "${{ env.PLAY_TRACK }}"
+          sa_path = "$SA_PATH"
+
+          credentials = service_account.Credentials.from_service_account_file(
+              sa_path,
+              scopes=["https://www.googleapis.com/auth/androidpublisher"]
+          )
+          service = build("androidpublisher", "v3", credentials=credentials)
+
+          edit = service.edits().insert(packageName=package_name).execute()
+          edit_id = edit["id"]
+
+          media = MediaFileUpload(aab_path, mimetype="application/octet-stream")
+          bundle = service.edits().bundles().upload(
+              packageName=package_name,
+              editId=edit_id,
+              media_body=media
+          ).execute()
+
+          version_code = bundle["versionCode"]
+
+          track_body = {
+              "track": track,
+              "releases": [{
+                  "name": "${{ steps.vname.outputs.version_name }}",
+                  "versionCodes": [str(version_code)],
+                  "status": "completed"
+              }]
+          }
+          service.edits().tracks().update(
+              packageName=package_name,
+              editId=edit_id,
+              track=track,
+              body=track_body
+          ).execute()
+
+          service.edits().commit(
+              packageName=package_name,
+              editId=edit_id
+          ).execute()
+
+          print(f"Published version {version_code} to Play track '{track}'")
+          PY

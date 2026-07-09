@@ -1,0 +1,229 @@
+name: iOS TestFlight
+
+# Builds a signed iOS .ipa and uploads it to TestFlight (internal testing)
+# whenever a semver release tag is pushed (e.g. v1.2.3).
+#
+# Required GitHub repository secrets (Settings → Secrets and variables → Actions):
+#   APP_STORE_CONNECT_API_KEY_ID      App Store Connect API key ID
+#   APP_STORE_CONNECT_API_ISSUER_ID   Issuer ID UUID
+#   APP_STORE_CONNECT_API_KEY_P8      Full contents of the AuthKey_XXXX.p8 file
+#   IOS_DIST_CERT_P12_BASE64          Base64-encoded Apple Distribution .p12
+#   IOS_DIST_CERT_PASSWORD            Password for the .p12
+#   IOS_PROVISIONING_PROFILE_BASE64   Base64-encoded App Store .mobileprovision
+#   IOS_KEYCHAIN_PASSWORD             Any strong random string
+#   IOS_TEAM_ID                       Apple Developer Team ID (10 characters)
+#
+# How to trigger:
+#   - Automatically: every push to `main` (uses run number as CFBundleVersion).
+#   - By tag:        `git tag v1.2.3 && git push origin v1.2.3` sets that marketing version.
+#   - Manually:      "Run workflow" (workflow_dispatch) with optional build_number override.
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Override CFBundleVersion. Leave blank to use run number.'
+        required: false
+
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    name: Build signed IPA & upload to TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    env:
+      IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID || 'com.thefridgeandcupboard.app' }}
+      IOS_SCHEME: App
+      IOS_WORKSPACE: ios/App/App.xcworkspace
+      IOS_CONFIGURATION: Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: false
+
+      - name: Select Xcode
+        run: |
+          # Pick the newest Xcode installed on the runner; macos-latest no longer ships 15.4.
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then LATEST=/Applications/Xcode.app; fi
+          echo "Using $LATEST"
+          sudo xcode-select -s "$LATEST"
+          xcodebuild -version
+
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build web bundle
+        env:
+          NODE_ENV: production
+        run: bun run build
+
+      - name: Sync Capacitor iOS
+        run: |
+          if [ ! -d "ios" ]; then
+            echo "::error::ios/ directory missing. Run 'npx cap add ios' locally and commit."
+            exit 1
+          fi
+          bunx cap sync ios
+
+
+      - name: Install CocoaPods
+        working-directory: ios/App
+        run: pod install --repo-update
+
+      - name: Derive build number
+        id: buildnum
+        run: |
+          if [ -n "${{ github.event.inputs.build_number }}" ]; then
+            BN="${{ github.event.inputs.build_number }}"
+          else
+            BN="${{ github.run_number }}"
+          fi
+          echo "build_number=$BN" >> "$GITHUB_OUTPUT"
+          echo "Using CFBundleVersion=$BN"
+
+      - name: Derive marketing version from tag
+        id: version
+        run: |
+          REF="${GITHUB_REF##*/}"
+          if [[ "$REF" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            VN="${BASH_REMATCH[1]}"
+          else
+            VN="1.0.0"
+          fi
+          echo "version_name=$VN" >> "$GITHUB_OUTPUT"
+          echo "Using CFBundleShortVersionString=$VN"
+
+      - name: Install signing certificate
+        env:
+          IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/dist.p12"
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+
+          echo "$IOS_DIST_CERT_P12_BASE64" | base64 -d > "$CERT_PATH"
+
+          security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_PATH" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security import "$CERT_PATH" -P "$IOS_DIST_CERT_PASSWORD" -A -t privKey -f pkcs12 -k "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN" $(security list-keychain -d user | sed 's/ *//g')
+
+      - name: Install provisioning profile
+        env:
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          PROFILE_PATH="$RUNNER_TEMP/build.mobileprovision"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -d > "$PROFILE_PATH"
+          UUID=$(grep -a -A1 "UUID" "$PROFILE_PATH" | grep "<string>" | sed -E 's/.*<string>(.*)<\/string>.*/\1/' | head -1)
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+          echo "Installed provisioning profile: $UUID"
+
+      - name: Build archive
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -workspace "$IOS_WORKSPACE" \
+            -scheme "$IOS_SCHEME" \
+            -configuration "$IOS_CONFIGURATION" \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_ID" \
+            CURRENT_PROJECT_VERSION="${{ steps.buildnum.outputs.build_number }}" \
+            MARKETING_VERSION="${{ steps.version.outputs.version_name }}" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Export IPA
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>thinning</key>
+            <string>&lt;none&gt;</string>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+          ls -la "$RUNNER_TEMP/export"
+
+      - name: Upload to TestFlight
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "::error::No .ipa found after export"
+            exit 1
+          fi
+
+          # Write the API key to a file for altool / xcrun altool
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID" \
+            --verbose || \
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
