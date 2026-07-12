@@ -1,22 +1,19 @@
 name: iOS TestFlight
 
-# Builds a signed iOS .ipa and uploads it to TestFlight (internal testing)
-# whenever a semver release tag is pushed (e.g. v1.2.3).
+# Builds a signed iOS .ipa and uploads it to TestFlight using
+# Xcode automatic signing driven by an App Store Connect API key.
+# No manual .p12 or .mobileprovision secrets required.
 #
-# Required GitHub repository secrets (Settings → Secrets and variables → Actions):
-#   APP_STORE_CONNECT_API_KEY_ID      App Store Connect API key ID
+# Required GitHub repository secrets:
+#   ASC_KEY_ID                       App Store Connect API key ID (10 chars)
+#                                    APP_STORE_CONNECT_API_KEY_ID is also accepted for compatibility.
 #   APP_STORE_CONNECT_API_ISSUER_ID   Issuer ID UUID
-#   APP_STORE_CONNECT_API_KEY_P8      Full contents of the AuthKey_XXXX.p8 file
-#   IOS_DIST_CERT_P12_BASE64          Base64-encoded Apple Distribution .p12
-#   IOS_DIST_CERT_PASSWORD            Password for the .p12
-#   IOS_PROVISIONING_PROFILE_BASE64   Base64-encoded App Store .mobileprovision
-#   IOS_KEYCHAIN_PASSWORD             Any strong random string
-#   IOS_TEAM_ID                       Apple Developer Team ID (10 characters)
+#   APP_STORE_CONNECT_API_KEY_P8      Full contents of AuthKey_XXXX.p8
+#   IOS_TEAM_ID                       Apple Developer Team ID (10 chars)
+#   IOS_BUNDLE_ID (optional)          Defaults to com.thefridgeandcupboard.app
 #
-# How to trigger:
-#   - Automatically: every push to `main` (uses run number as CFBundleVersion).
-#   - By tag:        `git tag v1.2.3 && git push origin v1.2.3` sets that marketing version.
-#   - Manually:      "Run workflow" (workflow_dispatch) with optional build_number override.
+# The API key user in App Store Connect must have the "Admin" or "App Manager"
+# role so Xcode can create/download signing assets on demand.
 
 on:
   push:
@@ -29,7 +26,6 @@ on:
       build_number:
         description: 'Override CFBundleVersion. Leave blank to use run number.'
         required: false
-
 
 concurrency:
   group: ios-testflight-${{ github.ref }}
@@ -71,13 +67,11 @@ jobs:
 
       - name: Select Xcode
         run: |
-          # Pick the newest Xcode installed on the runner; macos-latest no longer ships 15.4.
           LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
           if [ -z "$LATEST" ]; then LATEST=/Applications/Xcode.app; fi
           echo "Using $LATEST"
           sudo xcode-select -s "$LATEST"
           xcodebuild -version
-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -95,7 +89,6 @@ jobs:
           fi
           bunx cap sync ios
 
-
       - name: Install CocoaPods
         working-directory: ios/App
         run: pod install --repo-update
@@ -109,7 +102,6 @@ jobs:
             BN="${{ github.run_number }}"
           fi
           echo "build_number=$BN" >> "$GITHUB_OUTPUT"
-          echo "Using CFBundleVersion=$BN"
 
       - name: Derive marketing version from tag
         id: version
@@ -121,42 +113,53 @@ jobs:
             VN="1.0.0"
           fi
           echo "version_name=$VN" >> "$GITHUB_OUTPUT"
-          echo "Using CFBundleShortVersionString=$VN"
 
-      - name: Install signing certificate
+      - name: Verify App Store Connect secrets
         env:
-          IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
-          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
-          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          missing=0
+          for name in ASC_KEY_ID APP_STORE_CONNECT_API_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8 IOS_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required GitHub repo secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Add the missing secret(s) in GitHub → Settings → Secrets and variables → Actions, then re-run."
+            exit 1
+          fi
+          # Basic shape check for the Key ID (typically 10 uppercase alphanumerics)
+          if ! [[ "$ASC_KEY_ID" =~ ^[A-Z0-9]{8,12}$ ]]; then
+            echo "::error::ASC_KEY_ID doesn't look like an App Store Connect Key ID (expected ~10 uppercase alphanumeric chars)."
+            exit 1
+          fi
+
+      - name: Write App Store Connect API key
+        id: asckey
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
         run: |
           set -euo pipefail
-          CERT_PATH="$RUNNER_TEMP/dist.p12"
-          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          KEY_DIR="$RUNNER_TEMP/asc"
+          mkdir -p "$KEY_DIR"
+          KEY_PATH="$KEY_DIR/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          # Also install to the location xcodebuild checks automatically.
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          cp "$KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          echo "key_path=$KEY_PATH" >> "$GITHUB_OUTPUT"
 
-          echo "$IOS_DIST_CERT_P12_BASE64" | base64 -d > "$CERT_PATH"
-
-          security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$CERT_PATH" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security import "$CERT_PATH" -P "$IOS_DIST_CERT_PASSWORD" -A -t privKey -f pkcs12 -k "$KEYCHAIN"
-          security list-keychain -d user -s "$KEYCHAIN" $(security list-keychain -d user | sed 's/ *//g')
-
-      - name: Install provisioning profile
-        env:
-          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          set -euo pipefail
-          PROFILE_PATH="$RUNNER_TEMP/build.mobileprovision"
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -d > "$PROFILE_PATH"
-          UUID=$(grep -a -A1 "UUID" "$PROFILE_PATH" | grep "<string>" | sed -E 's/.*<string>(.*)<\/string>.*/\1/' | head -1)
-          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
-          echo "Installed provisioning profile: $UUID"
-
-      - name: Build archive
+      - name: Build archive (automatic signing)
         env:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
           set -euo pipefail
           xcodebuild archive \
@@ -165,7 +168,11 @@ jobs:
             -configuration "$IOS_CONFIGURATION" \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -destination 'generic/platform=iOS' \
-            CODE_SIGN_STYLE=Manual \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "${{ steps.asckey.outputs.key_path }}" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID" \
+            CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_ID" \
             CURRENT_PROJECT_VERSION="${{ steps.buildnum.outputs.build_number }}" \
@@ -173,9 +180,13 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Export IPA
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/ExportOptions.plist" <<'EOF'
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -183,11 +194,11 @@ jobs:
             <key>method</key>
             <string>app-store-connect</string>
             <key>signingStyle</key>
-            <string>manual</string>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>${IOS_TEAM_ID}</string>
             <key>stripSwiftSymbols</key>
             <true/>
-            <key>thinning</key>
-            <string>&lt;none&gt;</string>
           </dict>
           </plist>
           EOF
@@ -195,15 +206,18 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "${{ steps.asckey.outputs.key_path }}" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID"
 
           ls -la "$RUNNER_TEMP/export"
 
       - name: Upload to TestFlight
         env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
-          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
         run: |
           set -euo pipefail
           IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -n 1)
@@ -211,19 +225,9 @@ jobs:
             echo "::error::No .ipa found after export"
             exit 1
           fi
-
-          # Write the API key to a file for altool / xcrun altool
-          mkdir -p "$RUNNER_TEMP/asc"
-          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
-
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA_PATH" \
-            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiKey "$ASC_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID" \
-            --verbose || \
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$IPA_PATH" \
-            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
-            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
+            --verbose
