@@ -91,7 +91,7 @@ jobs:
 
       - name: Install CocoaPods
         working-directory: ios/App
-        run: pod install --repo-update
+        run: pod install --clean-install
 
       - name: Derive build number
         id: buildnum
