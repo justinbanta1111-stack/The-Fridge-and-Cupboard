@@ -148,7 +148,8 @@ jobs:
           KEY_DIR="$RUNNER_TEMP/asc"
           mkdir -p "$KEY_DIR"
           KEY_PATH="$KEY_DIR/AuthKey_${ASC_KEY_ID}.p8"
-          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8" > "$KEY_PATH"
+          printf '%s\n' "$APP_STORE_CONNECT_API_KEY_P8" | tr -d '\r' > "$KEY_PATH"
+
           chmod 600 "$KEY_PATH"
           # Also install to the location xcodebuild checks automatically.
           mkdir -p "$HOME/.appstoreconnect/private_keys"
