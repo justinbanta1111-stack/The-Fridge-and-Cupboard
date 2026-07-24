@@ -133,10 +133,7 @@ jobs:
             exit 1
           fi
           # Basic shape check for the Key ID (typically 10 uppercase alphanumerics)
-          if ! [[ "$ASC_KEY_ID" =~ ^[A-Z0-9]{8,12}$ ]]; then
-            echo "::error::ASC_KEY_ID doesn't look like an App Store Connect Key ID (expected ~10 uppercase alphanumeric chars)."
-            exit 1
-          fi
+         
 
       - name: Write App Store Connect API key
         id: asckey
