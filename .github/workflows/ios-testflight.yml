@@ -177,7 +177,7 @@ jobs:
             CURRENT_PROJECT_VERSION="${{ steps.buildnum.outputs.build_number }}" \
             MARKETING_VERSION="${{ steps.version.outputs.version_name }}" \
             COMPILER_INDEX_STORE_ENABLE=NO
-- name: Export IPA
+- name:  Export IPA
       
       
         env:
