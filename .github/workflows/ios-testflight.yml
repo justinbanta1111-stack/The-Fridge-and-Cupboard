@@ -178,8 +178,8 @@ jobs:
              MARKETING_VERSION="${{ steps.version.outputs.version_name }}" \
              COMPILER_INDEX_STORE_ENABLE=NO
 - name:  Export IPA
-      
-      
+    
+    
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
