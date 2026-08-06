@@ -30,7 +30,6 @@ on:
 concurrency:
   group: ios-testflight-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   build-and-upload:
     name: Build signed IPA & upload to TestFlight
