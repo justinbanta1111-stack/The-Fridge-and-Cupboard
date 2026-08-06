@@ -175,7 +175,7 @@ jobs:
  
              PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_ID" \
              CURRENT_PROJECT_VERSION="${{ steps.buildnum.outputs.build_number }}" \
-             MARKETING_VERSION="${{ steps.version.outputs.version_name }}" \
+             MARKETING_VERSION="${{ steps.version.outputs.version_name }}" 
 - name:  Export IPA
     
     
