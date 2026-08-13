@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 60
 
     env:
-      IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID || 'com.thefridgeandcupboard.app' }}
+      IOS_BUNDLE_ID: com.thefridgeandcupboard.apand
       IOS_SCHEME: App
       IOS_WORKSPACE: ios/App/App.xcworkspace
       IOS_CONFIGURATION: Release
