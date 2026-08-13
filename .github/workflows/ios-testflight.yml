@@ -10,7 +10,7 @@ name: iOS TestFlight
 #   APP_STORE_CONNECT_API_ISSUER_ID   Issuer ID UUID
 #   APP_STORE_CONNECT_API_KEY_P8      Full contents of AuthKey_XXXX.p8
 #   IOS_TEAM_ID                       Apple Developer Team ID (10 chars)
-#   IOS_BUNDLE_ID (optional)          Defaults to com.thefridgeandcupboard.app
+#   IOS_BUNDLE_ID (optional)          Defaults to com.thefridgeandcupboard.apand
 #
 # The API key user in App Store Connect must have the "Admin" or "App Manager"
 # role so Xcode can create/download signing assets on demand.
