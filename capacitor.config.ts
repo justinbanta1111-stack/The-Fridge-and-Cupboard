@@ -1,7 +1,7 @@
 // Capacitor configuration for The Fridge & Cupboard native builds
 
 const config: CapacitorConfig = {
-  appId: 'com.thefridgeandcupboard.app',
+  appId: 'com.thefridgeandcupboard.app ',
   appName: 'The Fridge & Cupboard',
   webDir: 'dist',
   server: {
