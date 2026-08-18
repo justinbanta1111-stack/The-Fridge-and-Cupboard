@@ -47,5 +47,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Used to select food photos for scanning.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>Used for voice conversations with the app.</string>
+<key>NSSpeechRecognitionUsageDescription</key>
+<string>Used to understand your spoken cooking requests.</string>
 </dict>
 </plist>
