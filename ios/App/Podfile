@@ -1,28 +1,55 @@
+# Capacitor iOS Podfile — tracked for GitHub Actions TestFlight build.
+#
+# CocoaPods is the ONLY source of Capacitor for this app. The Swift Package
+# (CapApp-SPM) was removed: having both dependency managers can link different
+# copies of Capacitor. Keep all Capacitor pods statically linked into App so
+# plugin calls are resolved by the linker, not by dyld during app launch.
+# Do not re-add an SPM Capacitor reference to App.xcodeproj.
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
-platform :ios, '15.1'
-use_frameworks!
 
+platform :ios, '15.1'
+use_frameworks! :linkage => :static
+
+# workaround to avoid Xcode caching of Pods that requires
+# Product -> Clean Build Folder after new Cordova plugins installed
+# Requires CocoaPods 1.6 or newer
 install! 'cocoapods', :disable_input_output_paths => true
 
+# Every plugin listed in the synced capacitor.config.json MUST have a pod here.
+# A plugin class Capacitor cannot find at launch is a silent broken feature.
 def capacitor_pods
-  # Automatic Capacitor Pod dependencies, do not delete
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCommunitySpeechRecognition', :path => '../../node_modules/@capacitor-community/speech-recognition'
   pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
   pod 'CapacitorBrowser', :path => '../../node_modules/@capacitor/browser'
-  
+  pod 'CapacitorCamera', :path => '../../node_modules/@capacitor/camera'
+  pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
+  pod 'CapacitorLocalNotifications', :path => '../../node_modules/@capacitor/local-notifications'
+  pod 'CapacitorNetwork', :path => '../../node_modules/@capacitor/network'
+  pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
   pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
+  pod 'CapacitorShare', :path => '../../node_modules/@capacitor/share'
   pod 'CapacitorSplashScreen', :path => '../../node_modules/@capacitor/splash-screen'
   pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
-  # Do not delete
 end
 
 target 'App' do
   capacitor_pods
+  # Add your Pods here
 end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+
+  # Capacitor is linked into the app. Preserve all Swift runtime metadata during
+  # the archive so Xcode cannot remove code required by a plugin before export.
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['COPY_PHASE_STRIP'] = 'NO'
+      config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+      config.build_settings['STRIP_SWIFT_SYMBOLS'] = 'NO'
+    end
+  end
 end

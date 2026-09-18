@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Never do audio work inside the launch call itself: activating an
+        // AVAudioSession while the app is still launching can block or abort
+        // the launch on some devices (watchdog / TCC timing). Launch first,
+        // configure Chef's voice a moment later.
+        DispatchQueue.main.async { [weak self] in
+            self?.configureChefVoiceAudioSession()
+        }
         return true
     }
 
@@ -26,8 +33,54 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        configureChefVoiceAudioSession()
     }
+
+    private func configureChefVoiceAudioSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            // .default (not .voiceChat) keeps Chef Super J's greeting at full
+            // playback volume; voiceChat applies call-style attenuation and
+            // routes quietly, which made the welcome nearly inaudible.
+            try session.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.defaultToSpeaker, .allowBluetoothA2DP, .allowAirPlay, .mixWithOthers]
+            )
+            try session.setActive(true, options: [])
+            try session.overrideOutputAudioPort(.speaker)
+        } catch {
+            print("Chef voice audio session configuration failed: \(error)")
+        }
+
+        // Re-activate the speaker route after phone calls, Siri, alarms, or
+        // headphone changes so automatic listen -> respond -> listen survives.
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionEvent),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionEvent),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleAudioSessionEvent(_ notification: Notification) {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setActive(true, options: [])
+            try session.overrideOutputAudioPort(.speaker)
+        } catch {
+            print("Chef voice audio session recovery failed: \(error)")
+        }
+    }
+
 
     func applicationWillTerminate(_ application: UIApplication) {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.

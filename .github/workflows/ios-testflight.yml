@@ -10,7 +10,7 @@ name: iOS TestFlight
 #   APP_STORE_CONNECT_API_ISSUER_ID   Issuer ID UUID
 #   APP_STORE_CONNECT_API_KEY_P8      Full contents of AuthKey_XXXX.p8
 #   IOS_TEAM_ID                       Apple Developer Team ID (10 chars)
-#   IOS_BUNDLE_ID (optional)          Defaults to com.thefridgeandcupboard.apand
+#   IOS_BUNDLE_ID (optional)          Defaults to com.thefridgeandcupboard.app
 #
 # The API key user in App Store Connect must have the "Admin" or "App Manager"
 # role so Xcode can create/download signing assets on demand.
@@ -26,18 +26,26 @@ on:
       build_number:
         description: 'Override CFBundleVersion. Leave blank to use run number.'
         required: false
+      revoke_dev_certs:
+        description: 'Revoke Apple DEVELOPMENT certificates to free a slot (expired ones are always revoked).'
+        required: false
+        default: 'false'
 
 concurrency:
   group: ios-testflight-${{ github.ref }}
-  cancel-in-progress: false
-jobs:       
-  build-and-upload:    
+  # Never let an older queued main-branch build upload after a newer fix.
+  # Build 314 was byte-for-byte the same native framework set as build 312,
+  # which can happen when an older queued workflow finishes later.
+  cancel-in-progress: true
+
+jobs:
+  build-and-upload:
     name: Build signed IPA & upload to TestFlight
     runs-on: macos-latest
     timeout-minutes: 60
 
     env:
-      IOS_BUNDLE_ID: com.thefridgeandcupboard.apand
+      IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID || 'com.thefridgeandcupboard.app' }}
       IOS_SCHEME: App
       IOS_WORKSPACE: ios/App/App.xcworkspace
       IOS_CONFIGURATION: Release
@@ -47,6 +55,27 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Verify release source is current
+        run: |
+          set -euo pipefail
+          echo "Release source: $GITHUB_SHA"
+          if [ "$GITHUB_REF" = "refs/heads/main" ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            git fetch --no-tags origin main
+            LATEST=$(git rev-parse origin/main)
+            if [ "$GITHUB_SHA" != "$LATEST" ]; then
+              echo "::error::Refusing to build stale source $GITHUB_SHA; latest main is $LATEST."
+              exit 1
+            fi
+          fi
+          if ! grep -Eq '^use_frameworks! *:linkage *=> *:static$' ios/App/Podfile; then
+            echo "::error::This source does not contain the required static Capacitor linkage fix."
+            exit 1
+          fi
+          if ! grep -q "DYNAMIC_CAPACITOR" .github/workflows/ios-testflight.yml; then
+            echo "::error::This source does not contain the pre-upload Capacitor crash guard."
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -80,7 +109,12 @@ jobs:
           NODE_ENV: production
         run: bun run build
 
+      - name: Package offline app bundle for the device
+        run: node scripts/build-native-shell.mjs
+
       - name: Sync Capacitor iOS
+        env:
+          CAP_TARGET: ios
         run: |
           if [ ! -d "ios" ]; then
             echo "::error::ios/ directory missing. Run 'npx cap add ios' locally and commit."
@@ -88,9 +122,57 @@ jobs:
           fi
           bunx cap sync ios
 
+      - name: Sanitize embedded web assets (ITMS-90685 guard)
+        run: |
+          chmod +x scripts/ios-sanitize-bundle.sh
+          scripts/ios-sanitize-bundle.sh prepare
+
+      - name: Guard against duplicate Capacitor (SPM + Pods)
+        run: |
+          if grep -q "CapApp-SPM" ios/App/App.xcodeproj/project.pbxproj; then
+            echo "::error::App.xcodeproj references the CapApp-SPM Swift package again."
+            echo "::error::That links a second copy of Capacitor.framework and crashes at launch"
+            echo "::error::with 'Symbol not found: Capacitor.ApplicationDelegateProxy.shared'."
+            exit 1
+          fi
+          if [ -d ios/App/CapApp-SPM ]; then
+            echo "::error::ios/App/CapApp-SPM was re-created. CocoaPods is the only Capacitor source."
+            exit 1
+          fi
+
+      - name: Clean stale iOS build artifacts
+        working-directory: ios/App
+        run: |
+          pod deintegrate || true
+          rm -rf Pods Podfile.lock App.xcworkspace
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
+          pod cache clean --all || true
+
       - name: Install CocoaPods
         working-directory: ios/App
-        run: pod install --clean-install
+        run: pod install --repo-update
+
+      - name: Verify a single Capacitor is linked
+        working-directory: ios/App
+        run: |
+          set -euo pipefail
+          echo "--- Capacitor pods resolved ---"
+          grep -E "Capacitor" Podfile.lock || true
+          COUNT=$(grep -cE "^  - Capacitor \\(" Podfile.lock || true)
+          if [ "$COUNT" != "1" ]; then
+            echo "::error::Expected exactly one Capacitor pod, found $COUNT."
+            exit 1
+          fi
+          if ! grep -Eq '^use_frameworks! *:linkage *=> *:static$' Podfile; then
+            echo "::error::Pod installation did not use the required static framework configuration."
+            exit 1
+          fi
+          EMBED_SCRIPT="Pods/Target Support Files/Pods-App/Pods-App-frameworks.sh"
+          if [ -f "$EMBED_SCRIPT" ] && grep -Eq 'install_framework.*Capacitor[^/]*\.framework' "$EMBED_SCRIPT"; then
+            echo "::error::CocoaPods plans to embed a dynamic Capacitor framework."
+            grep -E 'install_framework.*Capacitor[^/]*\.framework' "$EMBED_SCRIPT"
+            exit 1
+          fi
 
       - name: Derive build number
         id: buildnum
@@ -132,7 +214,10 @@ jobs:
             exit 1
           fi
           # Basic shape check for the Key ID (typically 10 uppercase alphanumerics)
-         
+          if ! [[ "$ASC_KEY_ID" =~ ^[A-Z0-9]{8,12}$ ]]; then
+            echo "::error::ASC_KEY_ID doesn't look like an App Store Connect Key ID (expected ~10 uppercase alphanumeric chars)."
+            exit 1
+          fi
 
       - name: Write App Store Connect API key
         id: asckey
@@ -144,13 +229,190 @@ jobs:
           KEY_DIR="$RUNNER_TEMP/asc"
           mkdir -p "$KEY_DIR"
           KEY_PATH="$KEY_DIR/AuthKey_${ASC_KEY_ID}.p8"
-          printf '%s\n' "$APP_STORE_CONNECT_API_KEY_P8" | tr -d '\r' > "$KEY_PATH"
-
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8" > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
           # Also install to the location xcodebuild checks automatically.
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           cp "$KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
           echo "key_path=$KEY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Validate App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          ASC_KEY_PATH: ${{ steps.asckey.outputs.key_path }}
+        run: |
+          set -euo pipefail
+          JWT=$(node -e '
+            const { createPrivateKey, createSign } = require("crypto");
+            const fs = require("fs");
+            const kid = process.env.ASC_KEY_ID;
+            const iss = process.env.APP_STORE_CONNECT_API_ISSUER_ID;
+            const pem = fs.readFileSync(process.env.ASC_KEY_PATH, "utf8");
+            const b64u = (b) => Buffer.from(b).toString("base64").replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+            const header = { alg:"ES256", kid, typ:"JWT" };
+            const now = Math.floor(Date.now()/1000);
+            const payload = { iss, iat: now, exp: now+600, aud:"appstoreconnect-v1" };
+            const input = b64u(JSON.stringify(header))+"."+b64u(JSON.stringify(payload));
+            const key = createPrivateKey({ key: pem, format:"pem" });
+            const der = createSign("SHA256").update(input).sign(key);
+            // DER -> JOSE (P-256, 64 bytes)
+            let o = 2; if (der[0] !== 0x30) throw new Error("bad DER");
+            if (der[1] & 0x80) o += der[1] & 0x7f;
+            const rLen = der[o+1]; let r = der.subarray(o+2, o+2+rLen); o = o+2+rLen;
+            const sLen = der[o+1]; let s = der.subarray(o+2, o+2+sLen);
+            const pad = (b) => { if (b.length>32) b = b.subarray(b.length-32); if (b.length<32) b = Buffer.concat([Buffer.alloc(32-b.length), b]); return b; };
+            const jose = Buffer.concat([pad(r), pad(s)]);
+            process.stdout.write(input+"."+b64u(jose));
+          ')
+          HTTP=$(curl -sS -o /tmp/asc.json -w "%{http_code}" \
+            -H "Authorization: Bearer $JWT" \
+            -H "Accept: application/json" \
+            "https://api.appstoreconnect.apple.com/v1/apps?limit=1")
+          echo "App Store Connect responded with HTTP $HTTP"
+          if [ "$HTTP" = "200" ]; then
+            COUNT=$(node -e 'const j=require("/tmp/asc.json");console.log((j.data||[]).length)')
+            echo "::notice::App Store Connect API key authenticated (visible apps: $COUNT)."
+            exit 0
+          fi
+          echo "::group::Apple response body"; cat /tmp/asc.json || true; echo; echo "::endgroup::"
+          if [ "$HTTP" = "401" ]; then
+            echo "::error::App Store Connect rejected the API key (401). Fix in this order:"
+            echo "::error::1) App Store Connect -> Users and Access -> Integrations -> App Store Connect API: confirm the key with ID '$ASC_KEY_ID' exists and is Active."
+            echo "::error::2) Its Role MUST be Admin or App Manager (Developer role returns 401 on listTeams)."
+            echo "::error::3) APP_STORE_CONNECT_API_ISSUER_ID must be the Issuer ID shown at the top of that same page."
+            echo "::error::4) APP_STORE_CONNECT_API_KEY_P8 must be the full AuthKey_${ASC_KEY_ID}.p8 contents including BEGIN/END lines."
+            exit 1
+          fi
+          if [ "$HTTP" = "403" ]; then
+            echo "::error::Authenticated but the API key lacks permission (403). Change its role to Admin or App Manager."
+            exit 1
+          fi
+          echo "::error::Unexpected HTTP $HTTP from App Store Connect. See body above."
+          exit 1
+
+
+      - name: Free Apple signing certificate slots
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          ASC_KEY_PATH: ${{ steps.asckey.outputs.key_path }}
+          REVOKE_DEV: ${{ github.event.inputs.revoke_dev_certs }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { createPrivateKey, createSign } = require("crypto");
+          const fs = require("fs");
+          function jwt() {
+            const kid = process.env.ASC_KEY_ID;
+            const iss = process.env.APP_STORE_CONNECT_API_ISSUER_ID;
+            const pem = fs.readFileSync(process.env.ASC_KEY_PATH, "utf8");
+            const b64u = (b) => Buffer.from(b).toString("base64").replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+            const now = Math.floor(Date.now()/1000);
+            const input = b64u(JSON.stringify({alg:"ES256",kid,typ:"JWT"}))+"."+b64u(JSON.stringify({iss,iat:now,exp:now+600,aud:"appstoreconnect-v1"}));
+            const der = createSign("SHA256").update(input).sign(createPrivateKey({key:pem,format:"pem"}));
+            let o=2; if(der[1]&0x80) o+=der[1]&0x7f;
+            const rLen=der[o+1]; const r=der.subarray(o+2,o+2+rLen); o=o+2+rLen;
+            const sLen=der[o+1]; const sg=der.subarray(o+2,o+2+sLen);
+            const pad=(b)=>{if(b.length>32)b=b.subarray(b.length-32);if(b.length<32)b=Buffer.concat([Buffer.alloc(32-b.length),b]);return b;};
+            return input+"."+b64u(Buffer.concat([pad(r),pad(sg)]));
+          }
+          (async () => {
+            const token = jwt();
+            const H = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+            const res = await fetch("https://api.appstoreconnect.apple.com/v1/certificates?limit=200", { headers: H });
+            if (!res.ok) { console.log(`::warning::Could not list certificates (HTTP ${res.status}); continuing.`); return; }
+            const list = (await res.json()).data || [];
+            const now = Date.now();
+            console.log("--- Apple certificates on this account ---");
+            for (const c of list) {
+              const a = c.attributes || {};
+              console.log(`${c.id}  ${a.certificateType}  exp=${a.expirationDate}  ${a.displayName || a.name || ""}`);
+            }
+            const revokeDev = String(process.env.REVOKE_DEV || "").toLowerCase() === "true";
+            const targets = list.filter((c) => {
+              const a = c.attributes || {};
+              const expired = a.expirationDate && Date.parse(a.expirationDate) < now;
+              const isDev = String(a.certificateType || "").includes("DEVELOPMENT");
+              return expired || (revokeDev && isDev);
+            });
+            for (const c of targets) {
+              const d = await fetch(`https://api.appstoreconnect.apple.com/v1/certificates/${c.id}`, { method: "DELETE", headers: H });
+              console.log(`revoke ${c.id} (${c.attributes.certificateType}) -> HTTP ${d.status}`);
+            }
+            const devLeft = list.length - targets.length;
+            console.log(`::notice::Certificates remaining after cleanup: ${devLeft}`);
+          })();
+          NODE
+
+      - name: Verify generated native inputs exist
+        run: |
+          set -euo pipefail
+          for f in ios/App/App/config.xml ios/App/App/capacitor.config.json ios/App/App/public/index.html; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing $f — 'cap sync' did not produce the files the app needs at launch."
+              exit 1
+            fi
+          done
+          echo "OK: config.xml, capacitor.config.json and packaged web assets are present."
+
+      - name: Verify the app actually launches (iOS Simulator smoke test)
+        run: |
+          set -euo pipefail
+          # Build the same Release configuration for the simulator and launch it.
+          # If the app aborts at startup (dyld, missing plugin, storyboard, web
+          # assets, audio session), this fails BEFORE anything reaches TestFlight.
+          xcodebuild build \
+            -workspace "$IOS_WORKSPACE" \
+            -scheme "$IOS_SCHEME" \
+            -configuration "$IOS_CONFIGURATION" \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/SimDD" \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+          APP=$(find "$RUNNER_TEMP/SimDD/Build/Products" -maxdepth 2 -name 'App.app' | head -n 1)
+          if [ -z "$APP" ]; then
+            echo "::error::Simulator build produced no App.app."
+            exit 1
+          fi
+
+          DEVTYPE=$(xcrun simctl list devicetypes | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.iPhone-[0-9]+' | sort -V | tail -1)
+          RUNTIME=$(xcrun simctl list runtimes | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9-]+' | sort -V | tail -1)
+          UDID=$(xcrun simctl create fnc-launch-smoke "$DEVTYPE" "$RUNTIME")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+
+          rm -f "$HOME/Library/Logs/DiagnosticReports/App"*.ips || true
+          PID=$(xcrun simctl launch "$UDID" "$IOS_BUNDLE_ID" | awk -F': *' '{print $2}' | tr -dc '0-9')
+          echo "Launched pid $PID"
+          FAILED=0
+          for i in $(seq 1 20); do
+            sleep 1
+            if ! ps -p "$PID" > /dev/null 2>&1; then
+              echo "::error::The app exited $i second(s) after launch — it crashes on open."
+              FAILED=1
+              break
+            fi
+          done
+
+          CRASH=$(ls "$HOME/Library/Logs/DiagnosticReports/App"*.ips 2>/dev/null | head -n 1 || true)
+          if [ -n "$CRASH" ]; then
+            echo "::error::Crash report produced at launch:"
+            head -80 "$CRASH"
+            FAILED=1
+          fi
+
+          xcrun simctl shutdown "$UDID" || true
+          xcrun simctl delete "$UDID" || true
+
+          if [ "$FAILED" != "0" ]; then
+            echo "::error::Refusing to upload a build that does not open. Fix the launch crash first."
+            exit 1
+          fi
+          echo "OK: the app launched and stayed running for 20s in the simulator."
 
       - name: Build archive (automatic signing)
         env:
@@ -159,25 +421,65 @@ jobs:
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
           set -euo pipefail
+          /usr/libexec/PlistBuddy -c "Add :FNCSourceRevision string $GITHUB_SHA" \
+            ios/App/App/Info.plist 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :FNCSourceRevision $GITHUB_SHA" \
+            ios/App/App/Info.plist
           xcodebuild archive \
             -workspace "$IOS_WORKSPACE" \
             -scheme "$IOS_SCHEME" \
             -configuration "$IOS_CONFIGURATION" \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -destination 'generic/platform=iOS' \
             -allowProvisioningUpdates \
             -authenticationKeyPath "${{ steps.asckey.outputs.key_path }}" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID" \
-          CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="$IOS_TEAM_ID" 
-             
-             CURRENT_PROJECT_VERSION="${{ steps.buildnum.outputs.build_number }}" \
-             MARKETING_VERSION="${{ steps.version.outputs.version_name }}" 
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="${{ steps.buildnum.outputs.build_number }}" \
+            MARKETING_VERSION="${{ steps.version.outputs.version_name }}" \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
-    
-    
-        
+          /usr/libexec/PlistBuddy -c "Add :FNCSourceRevision string $GITHUB_SHA" \
+            "$RUNNER_TEMP/App.xcarchive/Info.plist" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :FNCSourceRevision $GITHUB_SHA" \
+            "$RUNNER_TEMP/App.xcarchive/Info.plist"
+
+      - name: Verify Capacitor is statically linked (dyld crash guard)
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -n 1)
+          FW="$APP_PATH/Frameworks"
+          echo "--- embedded frameworks ---"
+          if [ -d "$FW" ]; then ls -1 "$FW"; else echo "(none)"; fi
+          DYNAMIC_CAPACITOR=$(find "$FW" -maxdepth 1 -name 'Capacitor*.framework' -print 2>/dev/null || true)
+          if [ -n "$DYNAMIC_CAPACITOR" ]; then
+            echo "::error::Capacitor must be statically linked, but dynamic Capacitor frameworks were embedded:"
+            echo "$DYNAMIC_CAPACITOR"
+            exit 1
+          fi
+          APP_BIN="$APP_PATH/$(basename "$APP_PATH" .app)"
+          APP_SHA=$(shasum -a 256 "$APP_BIN" | awk '{print $1}')
+          if nm -u "$APP_BIN" 2>/dev/null | awk '{print $NF}' | grep -qE '^_?\$s9Capacitor'; then
+            echo "::error::The archived app still has unresolved Capacitor symbols."
+            nm -u "$APP_BIN" 2>/dev/null | awk '{print $NF}' | grep -E '^_?\$s9Capacitor' | head -20
+            exit 1
+          fi
+          if otool -L "$APP_BIN" | grep -qE '@rpath/Capacitor[^/]*\.framework/'; then
+            echo "::error::The archived app still loads a dynamic Capacitor framework."
+            otool -L "$APP_BIN" | grep -E '@rpath/Capacitor[^/]*\.framework/'
+            exit 1
+          fi
+          echo "OK: Capacitor and its plugins are resolved inside the app executable."
+
+      - name: Export IPA
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
           set -euo pipefail
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -185,13 +487,15 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store</string>
+            <string>app-store-connect</string>
             <key>signingStyle</key>
             <string>automatic</string>
             <key>teamID</key>
             <string>${IOS_TEAM_ID}</string>
+            <!-- Defense in depth: Capacitor is statically linked, and exported
+                 Swift symbol stripping remains disabled for native dependencies. -->
             <key>stripSwiftSymbols</key>
-            <true/>
+            <false/>
           </dict>
           </plist>
           EOF
@@ -206,6 +510,82 @@ jobs:
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID"
 
           ls -la "$RUNNER_TEMP/export"
+
+      - name: Verify no CFBundleIdentifier collision
+        env:
+          IOS_BUNDLE_ID: ${{ env.IOS_BUNDLE_ID }}
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -n 1)
+          scripts/ios-sanitize-bundle.sh verify "$APP_PATH"
+
+      - name: Final IPA collision guard (pre-upload)
+        env:
+          IOS_BUNDLE_ID: ${{ env.IOS_BUNDLE_ID }}
+        run: |
+          set -euo pipefail
+          IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "::error::No .ipa found after export"
+            exit 1
+          fi
+          WORK="$RUNNER_TEMP/ipa-check"
+          rm -rf "$WORK" && mkdir -p "$WORK"
+          unzip -q "$IPA_PATH" -d "$WORK"
+          APP_PATH=$(find "$WORK/Payload" -maxdepth 1 -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app inside Payload of $IPA_PATH"
+            exit 1
+          fi
+          scripts/ios-sanitize-bundle.sh verify "$APP_PATH"
+
+          ARCHIVE_SOURCE=$(/usr/libexec/PlistBuddy -c 'Print :FNCSourceRevision' "$RUNNER_TEMP/App.xcarchive/Info.plist")
+          if [ "$ARCHIVE_SOURCE" != "$GITHUB_SHA" ]; then
+            echo "::error::Archive source $ARCHIVE_SOURCE does not match workflow source $GITHUB_SHA."
+            exit 1
+          fi
+          IPA_SOURCE=$(/usr/libexec/PlistBuddy -c 'Print :FNCSourceRevision' "$APP_PATH/Info.plist")
+          if [ "$IPA_SOURCE" != "$GITHUB_SHA" ]; then
+            echo "::error::Exported IPA source $IPA_SOURCE does not match workflow source $GITHUB_SHA."
+            exit 1
+          fi
+          IPA_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")
+          if [ "$IPA_BUILD" != "${{ steps.buildnum.outputs.build_number }}" ]; then
+            echo "::error::Exported IPA build $IPA_BUILD does not match requested build ${{ steps.buildnum.outputs.build_number }}."
+            exit 1
+          fi
+
+          echo "--- final static-link guard on the exported IPA ---"
+          FW="$APP_PATH/Frameworks"
+          DYNAMIC_CAPACITOR=$(find "$FW" -maxdepth 1 -name 'Capacitor*.framework' -print 2>/dev/null || true)
+          if [ -n "$DYNAMIC_CAPACITOR" ]; then
+            echo "::error::The exported IPA contains dynamically embedded Capacitor frameworks:"
+            echo "$DYNAMIC_CAPACITOR"
+            exit 1
+          fi
+          APP_BIN="$APP_PATH/$(basename "$APP_PATH" .app)"
+          APP_SHA=$(shasum -a 256 "$APP_BIN" | awk '{print $1}')
+          if nm -u "$APP_BIN" 2>/dev/null | awk '{print $NF}' | grep -qE '^_?\$s9Capacitor'; then
+            echo "::error::The exported IPA still has unresolved Capacitor symbols:"
+            nm -u "$APP_BIN" 2>/dev/null | awk '{print $NF}' | grep -E '^_?\$s9Capacitor' | head -20
+            exit 1
+          fi
+          if otool -L "$APP_BIN" | grep -qE '@rpath/Capacitor[^/]*\.framework/'; then
+            echo "::error::The exported IPA still loads a dynamic Capacitor framework:"
+            otool -L "$APP_BIN" | grep -E '@rpath/Capacitor[^/]*\.framework/'
+            exit 1
+          fi
+          echo "OK: exported IPA has no dynamic Capacitor boundary or unresolved Capacitor symbols."
+          echo "OK: release source is $GITHUB_SHA and build is $IPA_BUILD."
+          {
+            echo "### iOS release provenance"
+            echo "- Build: $IPA_BUILD"
+            echo "- Source: $GITHUB_SHA"
+            echo "- App binary SHA-256: $APP_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+
+
 
       - name: Upload to TestFlight
         env:
