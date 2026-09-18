@@ -92,6 +92,15 @@ html = html.replace(/<link rel="canonical"[^>]*>/g, "");
 // route ids on the device. Escape them so the script text is byte-safe.
 html = html.split("\u0000").join("\\0");
 
+// This page is the rendered home screen. If the webview ever opens it by its
+// file name (`/index.html`) or from a stale saved path, the router finds no
+// matching page, hydration aborts with "Invariant failed" and the app shows a
+// blank screen the moment it opens. Normalise the address before the app
+// script runs, and recover once if hydration still fails.
+const LAUNCH_PATH_GUARD = `<script>(function(){try{var p=location.pathname||"/";if(p!=="/"){var q=/index\\.html$/.test(p)||p==="";history.replaceState(null,"",(q?"/":p)+location.search+location.hash);}}catch(e){}
+var recovered=false;addEventListener("error",function(ev){var m=ev&&ev.message||"";if(!recovered&&m.indexOf("Invariant failed")>-1){recovered=true;try{sessionStorage.setItem("tfc.launch.recovered","1")}catch(e){}if(!sessionStorage.getItem("tfc.launch.reloaded")){try{sessionStorage.setItem("tfc.launch.reloaded","1")}catch(e){}location.replace("/")}}});})();</script>`;
+html = html.replace(/<head([^>]*)>/i, (match) => `${match}${LAUNCH_PATH_GUARD}`);
+
 writeFileSync(join(CLIENT, "index.html"), html);
 console.log(
   `[native-shell] Wrote ${CLIENT}/index.html (${html.length} bytes) and bundled ${saved} image asset(s).`,

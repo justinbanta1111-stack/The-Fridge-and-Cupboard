@@ -154,6 +154,10 @@ jobs:
             echo "::error::The packaged start page does not reference the installed app assets."
             exit 1
           fi
+          if ! grep -q 'tfc.launch.reloaded' "$START"; then
+            echo "::error::The packaged start page is missing the launch path guard."
+            exit 1
+          fi
           if grep -Eq 'SpeechRecognition|PushNotificationsPlugin' "$CONFIG" || \
              grep -Eq 'CapacitorCommunitySpeechRecognition|CapacitorPushNotifications' ios/App/Podfile; then
             echo "::error::The iPhone package contains a native plugin it does not use."

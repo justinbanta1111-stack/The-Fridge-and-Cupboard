@@ -79,6 +79,10 @@ if [ "$(wc -c < "$START" | tr -d ' ')" -lt 10000 ] || ! grep -q '/assets/' "$STA
   echo "The packaged start page is incomplete." >&2
   exit 1
 fi
+if ! grep -q 'tfc.launch.reloaded' "$START"; then
+  echo "The packaged start page is missing the launch path guard." >&2
+  exit 1
+fi
 if grep -Eq 'SpeechRecognition|PushNotificationsPlugin' "$CONFIG" || \
    grep -Eq 'CapacitorCommunitySpeechRecognition|CapacitorPushNotifications' ios/App/Podfile; then
   echo "The iPhone package still contains an unused startup plugin." >&2
