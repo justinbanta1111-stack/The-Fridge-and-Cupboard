@@ -117,6 +117,9 @@ jobs:
           rm -rf dist/client
           mkdir -p dist/client
           cp -R .output/public/. dist/client/
+          if [ ! -f dist/client/index.html ]; then
+            printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>' > dist/client/index.html
+          fi
 
       - name: Sync Capacitor iOS
         env:
