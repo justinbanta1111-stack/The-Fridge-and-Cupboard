@@ -15,10 +15,17 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const CLIENT = "dist/client";
-const SERVER_ENTRY = pathToFileURL(resolve("dist/server/index.mjs")).href;
+const serverEntryPath = existsSync("dist/server/index.mjs")
+  ? "dist/server/index.mjs"
+  : ".output/server/index.mjs";
+const SERVER_ENTRY = pathToFileURL(resolve(serverEntryPath)).href;
 
 if (!existsSync(CLIENT)) {
   console.error("[native-shell] dist/client missing — run `bun run build` first.");
+  process.exit(1);
+}
+if (!existsSync(serverEntryPath)) {
+  console.error("[native-shell] server entry missing — run `bun run build` first.");
   process.exit(1);
 }
 

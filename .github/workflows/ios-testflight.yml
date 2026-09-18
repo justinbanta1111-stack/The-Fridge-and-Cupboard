@@ -116,6 +116,10 @@ jobs:
             mkdir -p dist/client
             cp -R .output/public/. dist/client/
           fi
+          if [ ! -d dist/server ] && [ -d .output/server ]; then
+            mkdir -p dist/server
+            cp -R .output/server/. dist/server/
+          fi
           node scripts/build-native-shell.mjs
 
       - name: Sync Capacitor iOS
