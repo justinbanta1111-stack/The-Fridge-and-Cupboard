@@ -1,11 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Images, ArrowUpFromLine, ImagePlus, AlertTriangle, X } from "lucide-react";
+import {
+  Camera,
+  Images,
+  ArrowUpFromLine,
+  ImagePlus,
+  AlertTriangle,
+  X,
+  Video,
+  Check,
+  RotateCcw,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { isNativeApp } from "@/lib/native-runtime";
+import { haptic, nativeCapturePhoto, nativePickPhotos } from "@/lib/native-bridge";
+import { MEDIA_ACCEPT, VIDEO_ACCEPT, prepareMedia, type PreparedMedia } from "@/lib/media-capture";
 
 export type PhotoPickerProps = {
   onPick: (file: File, dataUrl: string) => void;
+  /** Optional richer callback: every still frame from photos and/or videos. */
+  onPickMedia?: (media: PreparedMedia, files: File[]) => void;
   compact?: boolean;
   label?: string;
 };
@@ -18,16 +33,29 @@ export type PhotoPickerProps = {
  * - on permission failure, show manual guidance toast
  * - supports drag & drop and gallery upload
  */
-export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps) {
+export function PhotoPicker({ onPick, onPickMedia, compact = false, label }: PhotoPickerProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const videoCaptureRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [cameraBlocked, setCameraBlocked] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  // The photo the user just took, held for confirmation. Nothing is sent for
+  // scanning until they tap "Use this photo".
+  const [pending, setPending] = useState<{ media: PreparedMedia; files: File[] } | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const cameraUnavailableMessage = "Camera not available on this device. Please choose a photo instead.";
+
+  useEffect(() => {
+    if (pending || captureError) {
+      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [pending, captureError]);
 
   const prefersCaptureInput = () => {
     const ua = navigator.userAgent;
@@ -42,22 +70,64 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
 
   useEffect(() => () => stopCamera(), []);
 
+  async function handleFiles(files: File[]) {
+    if (files.length === 0) return;
+    setProcessing(true);
+    setCaptureError(null);
+    try {
+      const kept = files.slice(0, 5);
+      const media = await prepareMedia(kept);
+      // Hold the photo for confirmation — never scan or discard it yet.
+      setPending({ media, files: kept });
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "We couldn't use that file. Please try another photo or video.";
+      setPending(null);
+      setCaptureError(message);
+      toast.error(message);
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  function confirmPending() {
+    if (!pending) return;
+    const { media, files } = pending;
+    setPending(null);
+    onPickMedia?.(media, files);
+    onPick(files[0], media.primaryDataUrl);
+  }
+
+  function retake() {
+    setPending(null);
+    setCaptureError(null);
+    void tryOpenCamera();
+  }
+
   function handleFile(file: File) {
-    if (file.size > 12 * 1024 * 1024) {
-      toast.error("Photo too large. Use one under 12MB.");
-      return;
-    }
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => onPick(file, String(reader.result));
-    reader.readAsDataURL(file);
+    void handleFiles([file]);
   }
 
   async function tryOpenCamera() {
     setCameraBlocked(false);
+
+    // Inside the iOS / Android app use the real device camera.
+    if (isNativeApp()) {
+      try {
+        const shot = await nativeCapturePhoto();
+        if (shot) {
+          void haptic("light");
+          await handleFiles([shot]);
+        }
+        return;
+      } catch {
+        setCaptureError("We couldn't open the camera. Try again, or choose a photo instead.");
+        toast.error(cameraUnavailableMessage);
+        return;
+      }
+    }
 
     if (prefersCaptureInput()) {
       cameraRef.current?.click();
@@ -102,12 +172,17 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
     canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {
       if (!blob) {
-        toast.error(cameraUnavailableMessage);
+        setCaptureError("That picture didn't save. Please take it again.");
         return;
       }
       const file = new File([blob], `fridge-photo-${Date.now()}.jpg`, { type: "image/jpeg" });
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-      onPick(file, dataUrl);
+      // Show it and wait for "Use this photo" — never scan straight away.
+      setCaptureError(null);
+      setPending({
+        media: { primaryDataUrl: dataUrl, dataUrls: [dataUrl], kind: "photo" },
+        files: [file],
+      });
       stopCamera();
     }, "image/jpeg", 0.92);
   }
@@ -115,7 +190,7 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
   function handleCameraChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
-      handleFile(file);
+      void handleFiles([file]);
     } else {
       setCameraBlocked(true);
       toast.error(cameraUnavailableMessage);
@@ -125,16 +200,18 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
   }
 
   return (
-    <Card className="ring-paper border-border/60 bg-card p-5">
+    <Card className={cn("ring-paper border-border/60 bg-card", compact ? "p-3 sm:p-4" : "p-5")}>
       {label && (
-        <h3 className="mb-4 font-display text-lg tracking-tight">{label}</h3>
+        <h3 className={cn("font-display text-lg tracking-tight", compact ? "mb-3" : "mb-4")}>
+          {label}
+        </h3>
       )}
-      <div className={cn("grid gap-3", compact ? "grid-cols-1" : "sm:grid-cols-3")}>
+      <div className={cn("grid gap-2.5 sm:gap-3", compact ? "grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-4")}>
         {/* Take Photo — large thumb-friendly tap target */}
         <button
           type="button"
           onClick={tryOpenCamera}
-          className="group flex flex-col items-center gap-2.5 rounded-lg border border-border/60 bg-secondary/40 px-4 py-6 text-center transition-colors hover:border-primary/40 hover:bg-primary/[0.04]"
+          className={cn("group flex min-h-32 flex-col items-center justify-center gap-2 rounded-lg border border-border/60 bg-secondary/40 px-3 text-center transition-colors hover:border-primary/40 hover:bg-primary/[0.04] active:scale-[0.98]", compact ? "py-4" : "py-6")}
         >
           <div className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary transition-transform group-hover:scale-105">
             <Camera className="h-6 w-6" />
@@ -148,22 +225,50 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
         {/* Choose from Photos */}
         <button
           type="button"
-          onClick={() => fileRef.current?.click()}
-          className="group flex flex-col items-center gap-2.5 rounded-lg border border-border/60 bg-secondary/40 px-4 py-6 text-center transition-colors hover:border-success/40 hover:bg-success/[0.04]"
+          onClick={async () => {
+            if (!isNativeApp()) {
+              fileRef.current?.click();
+              return;
+            }
+            try {
+              const photos = await nativePickPhotos();
+              if (photos.length) await handleFiles(photos);
+            } catch {
+              setCaptureError("We couldn't open Photos. Try again.");
+              toast.error("We couldn't open Photos. Try again.");
+            }
+          }}
+          className={cn("group flex min-h-32 flex-col items-center justify-center gap-2 rounded-lg border border-border/60 bg-secondary/40 px-3 text-center transition-colors hover:border-success/40 hover:bg-success/[0.04] active:scale-[0.98]", compact ? "py-4" : "py-6")}
         >
           <div className="grid h-12 w-12 place-items-center rounded-full bg-success/10 text-success transition-transform group-hover:scale-105">
             <Images className="h-6 w-6" />
           </div>
           <div>
             <div className="text-sm font-semibold text-foreground">Choose from Photos</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">Gallery or Google Photos</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">Photos or videos — pick several</div>
+          </div>
+        </button>
+
+        {/* Record a short video */}
+        <button
+          type="button"
+          onClick={() => videoCaptureRef.current?.click()}
+          className={cn("group flex min-h-32 flex-col items-center justify-center gap-2 rounded-lg border border-border/60 bg-secondary/40 px-3 text-center transition-colors hover:border-accent/40 hover:bg-accent/[0.04] active:scale-[0.98]", compact ? "py-4" : "py-6")}
+        >
+          <div className="grid h-12 w-12 place-items-center rounded-full bg-accent/10 text-accent transition-transform group-hover:scale-105">
+            <Video className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-foreground">Record Video</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">Pan across your shelves</div>
           </div>
         </button>
 
         {/* Drag & drop area */}
         <label
           className={cn(
-            "group flex flex-col items-center gap-2.5 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors",
+            "group flex min-h-32 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-3 text-center transition-colors active:scale-[0.98]",
+            compact ? "py-4" : "py-6",
             dragOver
               ? "border-primary/50 bg-primary/[0.05]"
               : "border-border/60 bg-secondary/40 hover:border-primary/40 hover:bg-primary/[0.04]",
@@ -173,8 +278,8 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            const file = e.dataTransfer.files?.[0];
-            if (file) handleFile(file);
+            const dropped = Array.from(e.dataTransfer.files ?? []);
+            if (dropped.length) void handleFiles(dropped);
           }}
         >
           <div className="grid h-12 w-12 place-items-center rounded-full bg-accent/10 text-accent transition-transform group-hover:scale-105">
@@ -182,9 +287,61 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
           </div>
           <div>
             <div className="text-sm font-semibold text-foreground">Drag & Drop</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">Drop an image here</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">Drop images or a video</div>
           </div>
         </label>
+      </div>
+
+      {/* Confirm the exact photo before anything is scanned */}
+      <div ref={previewRef}>
+        {pending && (
+          <div className="mt-4 rounded-lg border border-border/60 bg-secondary/30 p-3">
+            <img
+              src={pending.media.primaryDataUrl}
+              alt="The photo you just took"
+              className="max-h-[46vh] w-full rounded-md object-contain"
+            />
+            {pending.media.dataUrls.length > 1 && (
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                {pending.media.kind === "video"
+                  ? `Using ${pending.media.dataUrls.length} frames from your video`
+                  : `${pending.media.dataUrls.length} pictures selected`}
+              </p>
+            )}
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={confirmPending}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 active:scale-[0.98]"
+              >
+                <Check className="h-4 w-4" /> Use this photo
+              </button>
+              <button
+                type="button"
+                onClick={retake}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-border/60 px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-secondary active:scale-[0.98]"
+              >
+                <RotateCcw className="h-4 w-4" /> Retake photo
+              </button>
+            </div>
+          </div>
+        )}
+
+        {captureError && !pending && (
+          <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-3">
+            <div className="flex items-start gap-2 text-sm text-warning-foreground">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="font-medium">{captureError}</p>
+            </div>
+            <button
+              type="button"
+              onClick={retake}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 active:scale-[0.98]"
+            >
+              <RotateCcw className="h-4 w-4" /> Retake photo
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Camera blocked helper */}
@@ -233,12 +390,26 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept={MEDIA_ACCEPT}
+        multiple
+        hidden
+        onChange={(e) => {
+          const picked = Array.from(e.target.files ?? []);
+          if (picked.length) void handleFiles(picked);
+          if (fileRef.current) fileRef.current.value = "";
+        }}
+      />
+      {/* Video capture */}
+      <input
+        ref={videoCaptureRef}
+        type="file"
+        accept={VIDEO_ACCEPT}
+        capture="environment"
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) handleFile(file);
-          if (fileRef.current) fileRef.current.value = "";
+          if (file) void handleFiles([file]);
+          if (videoCaptureRef.current) videoCaptureRef.current.value = "";
         }}
       />
       {/* Camera capture — primary attempt */}
@@ -250,8 +421,11 @@ export function PhotoPicker({ onPick, compact = false, label }: PhotoPickerProps
         hidden
         onChange={handleCameraChange}
       />
+      {processing && (
+        <p className="mt-3 text-center text-xs font-medium text-muted-foreground">Getting your photos and video ready…</p>
+      )}
       <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
-        Works on Android Chrome, Samsung Internet, iPhone Safari, and iPhone Chrome.
+        Photos and short videos both work. Works on Android Chrome, Samsung Internet, iPhone Safari, and iPhone Chrome.
         If the camera doesn't open, try "Choose from Photos" — it works everywhere.
       </p>
     </Card>
@@ -264,6 +438,7 @@ export function InlinePhotoPicker({ onPick }: { onPick: (file: File, dataUrl: st
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [pending, setPending] = useState<{ file: File; dataUrl: string } | null>(null);
   const cameraUnavailableMessage = "Camera not available on this device. Please choose a photo instead.";
 
   function stopCamera() {
@@ -274,14 +449,13 @@ export function InlinePhotoPicker({ onPick }: { onPick: (file: File, dataUrl: st
 
   useEffect(() => () => stopCamera(), []);
 
-  function handleFile(file: File) {
-    if (file.size > 12 * 1024 * 1024) {
-      toast.error("Photo too large. Use one under 12MB.");
-      return;
+  async function handleFile(file: File) {
+    try {
+      const media = await prepareMedia([file]);
+      setPending({ file, dataUrl: media.primaryDataUrl });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "We couldn't use that file. Please try another photo or video.");
     }
-    const reader = new FileReader();
-    reader.onload = () => onPick(file, String(reader.result));
-    reader.readAsDataURL(file);
   }
 
   async function tryOpenCamera() {
@@ -331,7 +505,7 @@ export function InlinePhotoPicker({ onPick }: { onPick: (file: File, dataUrl: st
         return;
       }
       const file = new File([blob], `fridge-photo-${Date.now()}.jpg`, { type: "image/jpeg" });
-      onPick(file, canvas.toDataURL("image/jpeg", 0.92));
+      setPending({ file, dataUrl: canvas.toDataURL("image/jpeg", 0.92) });
       stopCamera();
     }, "image/jpeg", 0.92);
   }
@@ -352,8 +526,8 @@ export function InlinePhotoPicker({ onPick }: { onPick: (file: File, dataUrl: st
       >
         <ImagePlus className="h-4 w-4" /> Upload
       </button>
-      <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      <input ref={fileRef} type="file" accept={MEDIA_ACCEPT} hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); if (fileRef.current) fileRef.current.value = ""; }} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); if (cameraRef.current) cameraRef.current.value = ""; }} />
       {cameraOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/90 p-4 backdrop-blur-sm">
           <div className="w-full max-w-xl rounded-lg border border-border bg-card p-4 shadow-lg">
@@ -367,6 +541,37 @@ export function InlinePhotoPicker({ onPick }: { onPick: (file: File, dataUrl: st
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" onClick={stopCamera} className="rounded-md border border-border/60 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary">Cancel</button>
               <button type="button" onClick={captureDesktopPhoto} className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">Capture</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pending && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-background/90 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-lg border border-border bg-card p-4 shadow-lg">
+            <p className="mb-3 font-display text-lg text-foreground">Your photo</p>
+            <img src={pending.dataUrl} alt="The photo you just took" className="max-h-[55vh] w-full rounded-md object-contain" />
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const p = pending;
+                  setPending(null);
+                  onPick(p.file, p.dataUrl);
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 active:scale-[0.98]"
+              >
+                <Check className="h-4 w-4" /> Use this photo
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPending(null);
+                  void tryOpenCamera();
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-border/60 px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-secondary active:scale-[0.98]"
+              >
+                <RotateCcw className="h-4 w-4" /> Retake photo
+              </button>
             </div>
           </div>
         </div>

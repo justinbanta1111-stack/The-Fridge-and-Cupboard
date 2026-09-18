@@ -20,16 +20,16 @@ on:
     branches:
       - main
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       build_number:
-        description: 'Override CFBundleVersion. Leave blank to use run number.'
+        description: "Override CFBundleVersion. Leave blank to use run number."
         required: false
       revoke_dev_certs:
-        description: 'Revoke Apple DEVELOPMENT certificates to free a slot (expired ones are always revoked).'
+        description: "Revoke Apple DEVELOPMENT certificates to free a slot (expired ones are always revoked)."
         required: false
-        default: 'false'
+        default: "false"
 
 concurrency:
   group: ios-testflight-${{ github.ref }}
@@ -80,7 +80,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -90,7 +90,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: "3.2"
           bundler-cache: false
 
       - name: Select Xcode
@@ -110,26 +110,38 @@ jobs:
         run: bun run build
 
       - name: Prepare iPhone web assets
-        run: |
-          # iOS loads the proven live site configuration. Capacitor still
-          # requires webDir to exist during sync, so copy the built public
-          # assets without invoking the offline renderer used by Android.
-          rm -rf dist/client
-          mkdir -p dist/client
-          cp -R .output/public/. dist/client/
-          if [ ! -f dist/client/index.html ]; then
-            printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>' > dist/client/index.html
-          fi
+        run: node scripts/build-native-shell.mjs
 
       - name: Sync Capacitor iOS
-        env:
-          CAP_TARGET: ios
         run: |
           if [ ! -d "ios" ]; then
             echo "::error::ios/ directory missing. Run 'npx cap add ios' locally and commit."
             exit 1
           fi
           bunx cap sync ios
+
+      - name: Verify packaged app launch configuration
+        run: |
+          set -euo pipefail
+          CONFIG=ios/App/App/capacitor.config.json
+          START=ios/App/App/public/index.html
+          if [ ! -s "$CONFIG" ] || [ ! -s "$START" ]; then
+            echo "::error::The installed iPhone app is missing its configuration or local start page."
+            exit 1
+          fi
+          if node -e 'const c=require("./ios/App/App/capacitor.config.json"); process.exit(c.server && c.server.url ? 0 : 1)'; then
+            echo "::error::The iPhone build is configured to open a remote website instead of its installed app."
+            exit 1
+          fi
+          if [ "$(wc -c < "$START" | tr -d ' ')" -lt 10000 ]; then
+            echo "::error::The packaged start page is unexpectedly small and may be an empty shell."
+            exit 1
+          fi
+          if ! grep -q '/assets/' "$START"; then
+            echo "::error::The packaged start page does not reference the installed app assets."
+            exit 1
+          fi
+          echo "OK: iPhone launches the locally installed app package."
 
       - name: Sanitize embedded web assets (ITMS-90685 guard)
         run: |
@@ -305,7 +317,6 @@ jobs:
           fi
           echo "::error::Unexpected HTTP $HTTP from App Store Connect. See body above."
           exit 1
-
 
       - name: Free Apple signing certificate slots
         env:
@@ -614,9 +625,6 @@ jobs:
             echo "- Source: $GITHUB_SHA"
             echo "- App binary SHA-256: $APP_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
-
-
-
 
       - name: Upload to TestFlight
         env:
