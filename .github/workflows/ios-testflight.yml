@@ -130,6 +130,9 @@ jobs:
           fi
           bunx cap sync ios
 
+      - name: Remove plugins unused on iPhone
+        run: node scripts/ios-prune-unused-plugins.mjs
+
       - name: Verify packaged app launch configuration
         run: |
           set -euo pipefail
@@ -149,6 +152,11 @@ jobs:
           fi
           if ! grep -q '/assets/' "$START"; then
             echo "::error::The packaged start page does not reference the installed app assets."
+            exit 1
+          fi
+          if grep -Eq 'SpeechRecognition|PushNotificationsPlugin' "$CONFIG" || \
+             grep -Eq 'CapacitorCommunitySpeechRecognition|CapacitorPushNotifications' ios/App/Podfile; then
+            echo "::error::The iPhone package contains a native plugin it does not use."
             exit 1
           fi
           echo "OK: iPhone launches the locally installed app package."

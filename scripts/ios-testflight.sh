@@ -57,6 +57,9 @@ node scripts/build-native-shell.mjs
 echo "==> Syncing Capacitor iOS"
 bunx cap sync ios
 
+echo "==> Removing plugins that are not used by the iPhone app"
+node scripts/ios-prune-unused-plugins.mjs
+
 # Capacitor 8 generates this folder even for CocoaPods-only projects. The
 # Xcode project must continue to use CocoaPods as its single Capacitor source.
 rm -rf ios/App/CapApp-SPM
@@ -74,6 +77,11 @@ if node -e 'const c=require("./ios/App/App/capacitor.config.json"); process.exit
 fi
 if [ "$(wc -c < "$START" | tr -d ' ')" -lt 10000 ] || ! grep -q '/assets/' "$START"; then
   echo "The packaged start page is incomplete." >&2
+  exit 1
+fi
+if grep -Eq 'SpeechRecognition|PushNotificationsPlugin' "$CONFIG" || \
+   grep -Eq 'CapacitorCommunitySpeechRecognition|CapacitorPushNotifications' ios/App/Podfile; then
+  echo "The iPhone package still contains an unused startup plugin." >&2
   exit 1
 fi
 
