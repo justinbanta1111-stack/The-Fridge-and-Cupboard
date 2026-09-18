@@ -133,6 +133,12 @@ jobs:
           chmod +x scripts/ios-sanitize-bundle.sh
           scripts/ios-sanitize-bundle.sh prepare
 
+      - name: Remove Capacitor's generated SPM package
+        run: |
+          # Capacitor 8 regenerates this during sync even when the checked-in
+          # Xcode project intentionally uses CocoaPods only.
+          rm -rf ios/App/CapApp-SPM
+
       - name: Guard against duplicate Capacitor (SPM + Pods)
         run: |
           if grep -q "CapApp-SPM" ios/App/App.xcodeproj/project.pbxproj; then
