@@ -110,7 +110,13 @@ jobs:
         run: bun run build
 
       - name: Prepare iPhone web assets
-        run: node scripts/build-native-shell.mjs
+        run: |
+          set -euo pipefail
+          if [ ! -d dist/client ] && [ -d .output/public ]; then
+            mkdir -p dist/client
+            cp -R .output/public/. dist/client/
+          fi
+          node scripts/build-native-shell.mjs
 
       - name: Sync Capacitor iOS
         run: |
