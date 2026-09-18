@@ -109,8 +109,14 @@ jobs:
           NODE_ENV: production
         run: bun run build
 
-      - name: Package offline app bundle for the device
-        run: node scripts/build-native-shell.mjs
+      - name: Prepare iPhone web assets
+        run: |
+          # iOS loads the proven live site configuration. Capacitor still
+          # requires webDir to exist during sync, so copy the built public
+          # assets without invoking the offline renderer used by Android.
+          rm -rf dist/client
+          mkdir -p dist/client
+          cp -R .output/public/. dist/client/
 
       - name: Sync Capacitor iOS
         env:
