@@ -13,25 +13,11 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "sonner";
 import { VoiceGreeting } from "@/components/VoiceGreeting";
-import { VoiceMuteButton } from "@/components/VoiceMuteButton";
-import { VoiceStateIndicator } from "@/components/VoiceStateIndicator";
-import { NavControls } from "@/components/NavControls";
-import { NativeDeviceSetup } from "@/components/NativeDeviceSetup";
-import { OfflineBanner } from "@/components/OfflineBanner";
-import { TalkToChefButton } from "@/components/TalkToChefButton";
-
-import { ExpiryReminderWatcher } from "@/components/ExpiryReminderWatcher";
 import { VoiceStatusMeter } from "@/components/VoiceStatusMeter";
 // ChefVoiceChat removed — voice runs silently in background via VoiceGreeting.
 import { Celebration } from "@/components/effects/Celebration";
 import { ReferralCapture } from "@/components/ReferralCapture";
-import { RevealObserver } from "@/components/RevealObserver";
 import { setupPwaInstallDiagnostics } from "@/lib/pwa-install";
-import { LanguageProvider } from "@/lib/i18n/context";
-import bundledGreetingAudioUrl from "@/assets/chef-welcome.mp3?url";
-import { canSelfHeal, describeLaunchError, selfHealAndReload } from "@/lib/launch-recovery";
-import { isNativeApp } from "@/lib/native-runtime";
-
 
 function NotFoundComponent() {
   return (
@@ -58,13 +44,8 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  const details = describeLaunchError(error);
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
-    // Installed app only: a full or damaged saved-state store can stop the
-    // first screen from rendering. Clear this app's own saved data once and
-    // reload, so the app opens instead of showing a dead end.
-    if (isNativeApp() && canSelfHeal()) selfHealAndReload();
   }, [error]);
 
   return (
@@ -83,34 +64,21 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           >
             Try Again
           </button>
-          <button
-            onClick={() => selfHealAndReload()}
-            className="inline-flex items-center justify-center rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors active:scale-[0.98]"
-          >
-            Reset and reopen
-          </button>
         </div>
-        <details className="mt-5 text-left">
-          <summary className="cursor-pointer text-xs text-muted-foreground">Details</summary>
-          <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-[11px] leading-snug text-muted-foreground">
-            {details}
-          </pre>
-        </details>
       </div>
     </div>
   );
 }
 
-
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" },
-      { name: "theme-color", content: "#0b3d91" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      { name: "theme-color", content: "#e36b3f" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "apple-mobile-web-app-title", content: "The Fridge & Cupboard" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "apple-mobile-web-app-title", content: "Fridge & Cupboard" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "format-detection", content: "telephone=no" },
       { title: "The Fridge and Cupboard — Use What You Already Have" },
@@ -130,10 +98,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.json?v=20260617-safari-sw-off" },
-      { rel: "icon", type: "image/png", sizes: "512x512", href: "/images/fridge-superj.png" },
-      { rel: "shortcut icon", href: "/images/fridge-superj.png" },
-      { rel: "apple-touch-icon", sizes: "512x512", href: "/images/fridge-superj.png" },
-      { rel: "preload", href: bundledGreetingAudioUrl, as: "audio", type: "audio/mpeg" },
+      { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
+      { rel: "icon", type: "image/png", sizes: "192x192", href: "/icon-192.png" },
+      { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -198,44 +165,17 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <LanguageProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <RevealObserver />
-        <Toaster richColors position="top-center" />
-        <VoiceGreeting />
-        <VoiceStatusMeter />
-        <VoiceMuteButton />
-        <VoiceStateIndicator />
-        <NavControls />
-        <div
-          className="pointer-events-none fixed right-3 z-40"
-          style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
-        >
-          <TalkToChefButton className="pointer-events-auto max-w-[11rem] shadow-lg" />
-        </div>
-
-        <ExpiryReminderWatcher />
-        <NativeDeviceSetup />
-        <OfflineBanner />
-        {/* ChefVoiceChat removed — voice runs silently in background. */}
-        <Celebration />
-        <ReferralCapture />
-        <footer className="py-6 text-center text-xs text-muted-foreground">
-          <nav aria-label="Cooking guides" className="mx-auto mb-3 flex max-w-3xl flex-wrap justify-center gap-x-4 gap-y-2 px-4">
-            <Link to="/search" search={{ q: "" }} className="hover:text-foreground">Search</Link>
-            <Link to="/kitchen-guide" className="hover:text-foreground">Kitchen Guide</Link>
-            <Link to="/how-to-make" className="hover:text-foreground">Recipes</Link>
-            <Link to="/cooking-questions" className="hover:text-foreground">Cooking Questions</Link>
-            <Link to="/ingredients" className="hover:text-foreground">Ingredients</Link>
-            <Link to="/leftover-ideas" className="hover:text-foreground">Leftover Ideas</Link>
-            <Link to="/cuisines" className="hover:text-foreground">Cuisines</Link>
-            <Link to="/diets" className="hover:text-foreground">Dietary Meals</Link>
-          </nav>
-          &copy; 2026 The Fridge and Cupboard. All rights reserved.
-        </footer>
-
-      </LanguageProvider>
+      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <Outlet />
+      <Toaster richColors position="top-center" />
+      <VoiceGreeting />
+      <VoiceStatusMeter />
+      {/* ChefVoiceChat removed — voice runs silently in background. */}
+      <Celebration />
+      <ReferralCapture />
+      <footer className="py-6 text-center text-xs text-muted-foreground">
+        &copy; 2026 The Fridge and Cupboard. All rights reserved.
+      </footer>
     </QueryClientProvider>
   );
 }
