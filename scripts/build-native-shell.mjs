@@ -98,8 +98,16 @@ html = html.split("\u0000").join("\\0");
 // blank screen the moment it opens. Normalise the address before the app
 // script runs, and recover once if hydration still fails.
 const LAUNCH_PATH_GUARD = `<script>(function(){try{var p=location.pathname||"/";if(p!=="/"){var q=/index\\.html$/.test(p)||p==="";history.replaceState(null,"",(q?"/":p)+location.search+location.hash);}}catch(e){}
-var recovered=false;addEventListener("error",function(ev){var m=ev&&ev.message||"";if(!recovered&&m.indexOf("Invariant failed")>-1){recovered=true;try{sessionStorage.setItem("tfc.launch.recovered","1")}catch(e){}if(!sessionStorage.getItem("tfc.launch.reloaded")){try{sessionStorage.setItem("tfc.launch.reloaded","1")}catch(e){}location.replace("/")}}});})();</script>`;
+var recovered=false;var lastErr="";
+function note(e){try{var m=(e&&(e.message||e.reason&&(e.reason.message||e.reason)))||"";var s=(e&&e.error&&e.error.stack)||(e&&e.reason&&e.reason.stack)||"";lastErr=String(m)+"\\n"+String(s).split("\\n").slice(0,5).join("\\n");}catch(x){}}
+addEventListener("error",function(ev){note(ev);var m=ev&&ev.message||"";if(!recovered&&m.indexOf("Invariant failed")>-1){recovered=true;try{sessionStorage.setItem("tfc.launch.recovered","1")}catch(e){}if(!sessionStorage.getItem("tfc.launch.reloaded")){try{sessionStorage.setItem("tfc.launch.reloaded","1")}catch(e){}location.replace("/")}}});
+addEventListener("unhandledrejection",note);
+function healed(){try{return localStorage.getItem("tfc.launch.healed.v1")==="1"}catch(e){return true}}
+function heal(){try{localStorage.setItem("tfc.launch.healed.v1","1")}catch(e){}try{var d=[],i;for(i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&(k.indexOf("tfc_")===0||k.indexOf("tfc.")===0||k.indexOf("fac:")===0||k.indexOf("chef_")===0||k.indexOf("cooking_")===0))d.push(k)}for(i=0;i<d.length;i++){try{localStorage.removeItem(d[i])}catch(e){}}}catch(e){}try{sessionStorage.clear()}catch(e){}try{location.replace("/")}catch(e){location.reload()}}
+setTimeout(function(){try{var t=(document.body&&document.body.innerText)||"";if(t.indexOf("Something didn't load")===-1)return;if(!healed()){heal();return}
+var box=document.createElement("pre");box.style.cssText="margin:12px;padding:10px;max-height:40vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:11px/1.4 -apple-system,monospace;background:#f4f1ea;color:#444;border-radius:8px";box.textContent=lastErr||"No error detail was captured.";document.body.appendChild(box);}catch(e){}},3500);})();</script>`;
 html = html.replace(/<head([^>]*)>/i, (match) => `${match}${LAUNCH_PATH_GUARD}`);
+
 
 writeFileSync(join(CLIENT, "index.html"), html);
 console.log(
