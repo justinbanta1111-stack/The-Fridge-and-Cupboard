@@ -200,21 +200,54 @@ export async function readFromDevice(key: string): Promise<string | null> {
 export const DEVICE_BACKED_KEYS = [
   "tfc_shopping_list_v1",
   "tfc_expiry_reminders_v1",
-  "tfc.saved.recipes.v1",
-  "tfc.inventory.v1",
-  "tfc.kitchen.items.v1",
-  "tfc.cooking.progress.v1",
-  "tfc.chef.memory.v1",
+  "tfc_my_recipes_v1",
+  "tfc_expiry_items_v1",
+  "fac:memory-kitchen:v1",
 ];
+
+const DEVICE_BACKED_PREFIXES = ["tfc.cooking.progress.v1:"];
+const DEVICE_KEY_INDEX = "tfc.device-backed-keys.v1";
+const MAX_DEVICE_VALUE_BYTES = 2_000_000;
+
+function isSafeStoredValue(value: string): boolean {
+  if (value.length > MAX_DEVICE_VALUE_BYTES) return false;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed !== null && (Array.isArray(parsed) || typeof parsed === "object");
+  } catch {
+    return false;
+  }
+}
+
+function localDeviceBackedKeys(): string[] {
+  const keys = [...DEVICE_BACKED_KEYS];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && DEVICE_BACKED_PREFIXES.some((prefix) => key.startsWith(prefix))) keys.push(key);
+  }
+  return [...new Set(keys)];
+}
 
 /** Copy any device-backed values back into localStorage on a cold start. */
 export async function restoreDeviceBackedKeys(): Promise<void> {
   if (!isNativeApp() || typeof localStorage === "undefined") return;
-  for (const key of DEVICE_BACKED_KEYS) {
+  let indexedKeys: string[] = [];
+  const rawIndex = await readFromDevice(DEVICE_KEY_INDEX);
+  if (rawIndex) {
+    try {
+      const parsed: unknown = JSON.parse(rawIndex);
+      if (Array.isArray(parsed)) indexedKeys = parsed.filter((key): key is string =>
+        typeof key === "string" && DEVICE_BACKED_PREFIXES.some((prefix) => key.startsWith(prefix)),
+      );
+    } catch {
+      // An older or interrupted write must not affect startup.
+    }
+  }
+  for (const key of [...new Set([...DEVICE_BACKED_KEYS, ...indexedKeys])]) {
     try {
       if (localStorage.getItem(key) != null) continue;
       const value = await readFromDevice(key);
-      if (value != null) localStorage.setItem(key, value);
+      if (value != null && isSafeStoredValue(value)) localStorage.setItem(key, value);
     } catch {
       /* ignore */
     }
@@ -224,14 +257,16 @@ export async function restoreDeviceBackedKeys(): Promise<void> {
 /** Push the current localStorage values down to the device store. */
 export async function syncDeviceBackedKeys(): Promise<void> {
   if (!isNativeApp() || typeof localStorage === "undefined") return;
-  for (const key of DEVICE_BACKED_KEYS) {
+  const keys = localDeviceBackedKeys();
+  for (const key of keys) {
     try {
       const value = localStorage.getItem(key);
-      if (value != null) await persistToDevice(key, value);
+      if (value != null && isSafeStoredValue(value)) await persistToDevice(key, value);
     } catch {
       /* ignore */
     }
   }
+  await persistToDevice(DEVICE_KEY_INDEX, JSON.stringify(keys));
 }
 
 /* ------------------------------------------------------------------- camera */

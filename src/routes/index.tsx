@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { displayIngredientLine } from "@/lib/ingredients-db";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { speakNow } from "@/lib/voice-assistant";
 import {
   Sparkles,
   ChefHat,
@@ -30,6 +32,9 @@ import {
   Leaf,
   Utensils,
   Gift,
+  Plus,
+  X,
+  HelpCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -70,24 +75,51 @@ import { HealthSpecialNeedsStrip } from "@/components/HealthSpecialNeedsStrip";
 import { DietaryPicker } from "@/components/DietaryPicker";
 import { PersonalizedPicks } from "@/components/PersonalizedPicks";
 import { FlagshipFeatures } from "@/components/FlagshipFeatures";
-import { ChefCompanionStrip } from "@/components/ChefCompanionStrip";
 import { DayOfMealsStrip } from "@/components/DayOfMealsStrip";
 import { FridgeIntro } from "@/components/FridgeIntro";
+import { ChefGreetingBadge } from "@/components/ChefGreetingBadge";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { prepareMedia } from "@/lib/media-capture";
+import { setScanContext } from "@/lib/scan-context";
+import { reactToScan, type ChefScanReaction } from "@/lib/chef-reaction.functions";
+import { ChefTake } from "@/components/ChefTake";
+import { TonightVibe } from "@/components/TonightVibe";
+import { ChefFixIt } from "@/components/ChefFixIt";
+import { FoodInsightsLink } from "@/components/FoodInsights";
+
 import { ScanAnimation } from "@/components/ScanAnimation";
 import { SavingsDashboard } from "@/components/SavingsDashboard";
-import { RescueCenter } from "@/components/RescueCenter";
 import { ShareScanModal } from "@/components/ShareScanCard";
 import { ScanAuthGate } from "@/components/ScanAuthGate";
+import {
+  ensureGuestSession,
+  isAnonymousUser,
+  incrementGuestScanCount,
+  hasFreeScanLeft,
+  freeScanKindFor,
+  recordFreeScan,
+} from "@/lib/guest";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { PlanBanners } from "@/components/PlanBanners";
+import { useSubscription } from "@/hooks/use-subscription";
+import { usePricingVisibility } from "@/hooks/use-pricing-visibility";
+
 import { SaveButton } from "@/components/SaveButton";
 import { BenefitCards } from "@/components/BenefitCards";
 import { SavingsMeter } from "@/components/SavingsMeter";
 import { ActionGrid } from "@/components/ActionGrid";
+import { HomeFourCards } from "@/components/HomeFourCards";
+import { ExpiryAlerts } from "@/components/ExpiryAlerts";
+import { WelcomeValue } from "@/components/WelcomeValue";
+import { EverythingSection } from "@/components/EverythingSection";
+import { MembershipTiers } from "@/components/MembershipTiers";
+import { FriendlyTrialInvite } from "@/components/FriendlyTrialInvite";
+
 
 import { ChefTipOfTheDay } from "@/components/ChefTipOfTheDay";
 import { MeetChefSuperJ } from "@/components/MeetChefSuperJ";
+import { MoreInfo } from "@/components/MoreInfo";
+
 import { SurpriseMeButton } from "@/components/SurpriseMeButton";
 import { CuisineWheel } from "@/components/CuisineWheel";
 import { PantryTreasureHunt } from "@/components/PantryTreasureHunt";
@@ -96,6 +128,7 @@ import { FamilyFavorites } from "@/components/FamilyFavorites";
 import { WeeklyChallenges } from "@/components/WeeklyChallenges";
 import { SharePlateButton } from "@/components/SharePlateModal";
 import { ShareMenu } from "@/components/ShareMenu";
+import { RecipeActions } from "@/components/RecipeActions";
 import { InviteAndShareStrip } from "@/components/InviteAndShareStrip";
 import { KitchenMagicStrip } from "@/components/KitchenMagicStrip";
 import { GrowthHubStrip } from "@/components/GrowthHubStrip";
@@ -107,10 +140,13 @@ import { DailyCoachStrip } from "@/components/DailyCoachStrip";
 import { LifeModeStrip } from "@/components/LifeModeStrip";
 import { FamilyLegacyStrip } from "@/components/FamilyLegacyStrip";
 import { PersonalizedWelcome } from "@/components/PersonalizedWelcome";
+import { SayItNaturally } from "@/components/SayItNaturally";
+import { WhatsNew } from "@/components/WhatsNew";
+import { TodaysInspiration } from "@/components/TodaysInspiration";
+import { SendSuggestion } from "@/components/SendSuggestion";
 import { FoodPersonalityCard } from "@/components/FoodPersonality";
 import { recordScan, recordCuisine, recordAction } from "@/lib/food-personality";
 import { buildMealShareMessage } from "@/lib/share-messages";
-import { FloatingIngredients } from "@/components/effects/FloatingIngredients";
 import { ScanLines } from "@/components/effects/ScanLines";
 import { celebrate } from "@/components/effects/Celebration";
 import { getRandomCompliment } from "@/lib/chef-tips";
@@ -118,16 +154,21 @@ import { getRandomCompliment } from "@/lib/chef-tips";
 
 
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
-import { dietLabel } from "@/lib/personalization";
+import { dietLabels } from "@/lib/personalization";
+import { screenForCitricAcid, CITRIC_ACID_WARNING } from "@/lib/citric-acid";
+import { GerdInfoCard } from "@/components/GerdInfoCard";
 import { MemoryKitchenCard } from "@/components/MemoryKitchenCard";
 import { BatchKStrip } from "@/components/BatchKStrip";
 import { UseItTonightStrip } from "@/components/UseItTonightStrip";
+import { SmartCookingHub } from "@/components/SmartCookingHub";
 import { TonightsRescueMission } from "@/components/TonightsRescueMission";
 import { WowTourButton } from "@/components/WowTour";
 import { ShowMeWhatThisCanDoButton } from "@/components/ShowMeWhatThisCanDo";
 import { rememberCook, rememberStaples } from "@/lib/memory-kitchen";
 import { toast } from "sonner";
 import heroKitchen from "@/assets/hero-kitchen.jpg";
+import { MatchedDishes } from "@/components/MatchedDishes";
+
 
 
 
@@ -271,12 +312,18 @@ function Home() {
 
 export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { showIntro?: boolean; initialStorage?: StorageOpt }) {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [extraFrames, setExtraFrames] = useState<string[]>([]);
+  const [chefTake, setChefTake] = useState<ChefScanReaction | null>(null);
   const [pendingReview, setPendingReview] = useState(false);
   const [cuisine, setCuisine] = useState<string>("italian");
   const [storage, setStorage] = useState<StorageOpt>(initialStorage);
   const [shareOpen, setShareOpen] = useState(false);
   const [showAuthGate, setShowAuthGate] = useState(false);
   const quickFileRef = useRef<HTMLInputElement>(null);
+  const scanSectionRef = useRef<HTMLDivElement>(null);
+  const scrollToScan = () => {
+    scanSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   function handleQuickAction(storageType: StorageOpt) {
     setStorage(storageType);
@@ -285,7 +332,11 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
   }
 
   const [user, setUser] = useState<any>(null);
-  const { prefs, toggle, clear } = useDietaryPrefs();
+  const realUser = user && !isAnonymousUser(user) ? user : null;
+  const { isActive: hasSubscription } = useSubscription();
+  const { showSignupBlocks } = usePricingVisibility();
+
+  const { prefs, toggle, clear, notes: dietNotes, setNotes: setDietNotes } = useDietaryPrefs();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -309,7 +360,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
   const recentInventoryQuery = useQuery({
     queryKey: ["recent-inventory"],
     queryFn: () => getRecentInventoryFn(),
-    enabled: !!user,
+    enabled: !!realUser,
   });
 
   const recipesMut = useMutation({
@@ -332,13 +383,71 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
     }
     return merged;
   }
+  const reactFn = useServerFn(reactToScan);
+  const chefTakeMut = useMutation({
+    mutationFn: (input: { items: string[]; useFirst: string[] }) =>
+      reactFn({
+        data: {
+          items: input.items,
+          useFirst: input.useFirst,
+          storage,
+          restrictions: dietLabels(prefs, dietNotes),
+        },
+      }),
+    onSuccess: (r) => setChefTake(r),
+  });
+
+  // Spoken reassurance while a photo is being read, so the kitchen never goes
+  // silent for a long stretch. Speech is a no-op when voice is muted.
+  const almostThereRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function clearAlmostThere() {
+    if (almostThereRef.current) clearTimeout(almostThereRef.current);
+    almostThereRef.current = null;
+  }
+  useEffect(() => clearAlmostThere, []);
 
   const analyzeMut = useMutation({
-    mutationFn: (dataUrl: string) => analyzeFn({ data: { imageDataUrl: dataUrl, storage, restrictions: prefs.map((p) => dietLabel(p)) } }),
+    mutationFn: (dataUrl: string) =>
+      analyzeFn({
+        data: {
+          imageDataUrl: dataUrl,
+          extraImageDataUrls: extraFrames.length ? extraFrames : undefined,
+          storage,
+          restrictions: dietLabels(prefs, dietNotes),
+        },
+      }),
+    onMutate: () => {
+      try {
+        speakNow("Let me take a look.");
+        clearAlmostThere();
+        almostThereRef.current = setTimeout(() => speakNow("Almost there."), 9000);
+      } catch {}
+    },
+    onSettled: () => clearAlmostThere(),
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
     onSuccess: (result) => {
       const usable = result.items.filter((i) => i.freshness !== "throw-out" && !i.unsafe);
       try { recordScan(result.items.map((i) => i.name)); } catch {}
+      // Remember what the chef just saw so the conversation can continue from it.
+      const useFirstNames = usable
+        .filter((i) => i.freshness === "use-soon" || i.freshness === "questionable")
+        .map((i) => i.name);
+      try {
+        setScanContext({
+          items: usable.map((i) => i.name),
+          useFirst: useFirstNames,
+          summary: result.summary,
+          storage,
+        });
+      } catch {}
+      setChefTake(null);
+      if (usable.length > 0) {
+        chefTakeMut.mutate({ items: usable.map((i) => i.name), useFirst: useFirstNames.slice(0, 6) });
+      }
+      if (isAnonymousUser(user)) {
+        try { incrementGuestScanCount(); } catch {}
+        try { recordFreeScan(freeScanKindFor(storage)); } catch {}
+      }
       if (usable.length === 0) return;
       const sorted = [...usable].sort((a, b) => {
         const la = a.category === "leftover" ? 0 : 1;
@@ -353,7 +462,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
       recipesMut.mutate({
         items: mergeWithRecent(baseItems),
         cuisine: cuisineLabel,
-        restrictions: prefs.map((p) => dietLabel(p)),
+        restrictions: dietLabels(prefs, dietNotes),
       });
     },
   });
@@ -383,6 +492,11 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
     onError: (e: Error) => toast.error(e.message ?? "Couldn't save scan"),
   });
 
+  const autoSavedRef = useRef<unknown>(null);
+
+
+
+
   const cookedMut = useMutation({
     mutationFn: (vars: { recipeTitle: string; savingsCents?: number }) =>
       logCookedFn({ data: { recipeTitle: vars.recipeTitle, estimatedSavingsCents: vars.savingsCents } }),
@@ -401,12 +515,40 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
   const myScansQuery = useQuery({
     queryKey: ["my-scans"],
     queryFn: () => getMyScansFn(),
-    enabled: !!user,
+    enabled: !!realUser,
   });
 
 
   const analysis: AnalyzeResult | undefined = analyzeMut.data;
   const recipes: RecipesResult | undefined = recipesMut.data;
+
+  // Every photo a signed-in person scans is kept automatically, so the fridge
+  // stays on record across devices and the chef can talk about it later.
+  // The manual Save button still works; this just makes keeping it the default.
+  useEffect(() => {
+    if (!realUser || !imageDataUrl || !analysis) return;
+    if (autoSavedRef.current === analysis) return;
+    autoSavedRef.current = analysis;
+    const itemsToSave = analysis.items.map(({ __idx: _idx, ...rest }: any) => rest);
+    saveScanFn({
+      data: {
+        imageDataUrl,
+        items: itemsToSave,
+        summary: analysis.summary,
+        cuisine: CUISINES.find((c) => c.id === cuisine)?.label ?? cuisine,
+      },
+    })
+      .then(() => {
+        myScansQuery.refetch();
+        recentInventoryQuery.refetch();
+      })
+      .catch(() => {
+        /* keeping history is best-effort — never interrupt the scan */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysis, imageDataUrl, realUser]);
+
+
 
   // Tap-to-confirm / correct on scan items. Edits are keyed by the item's
   // original index in analyzeMut.data.items and reset whenever a new scan
@@ -414,43 +556,51 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
   type ItemEdit = Partial<Pick<AnalyzeResult["items"][number], "name" | "estimatedAge" | "freshness" | "timeLeftLabel">>;
   const [itemEdits, setItemEdits] = useState<Record<number, ItemEdit>>({});
   const [confirmedIdx, setConfirmedIdx] = useState<Record<number, boolean>>({});
+  const [removedIdx, setRemovedIdx] = useState<Record<number, boolean>>({});
+  const [addedItems, setAddedItems] = useState<AnalyzeResult["items"]>([]);
   useEffect(() => {
     setItemEdits({});
     setConfirmedIdx({});
+    setRemovedIdx({});
+    setAddedItems([]);
   }, [analyzeMut.data]);
 
+  const ADDED_IDX_BASE = 10000;
   const displayAnalysis = useMemo(() => {
     if (!analysis) return undefined;
-    return {
-      ...analysis,
-      items: analysis.items.map((it, idx) => ({
+    const base = analysis.items
+      .map((it, idx) => ({
         ...it,
         ...(itemEdits[idx] ?? {}),
         __idx: idx,
-      })),
-    };
-  }, [analysis, itemEdits]);
+      }))
+      .filter((it) => !removedIdx[it.__idx]);
+    const added = addedItems.map((it, i) => ({ ...it, __idx: ADDED_IDX_BASE + i }));
+    return { ...analysis, items: [...base, ...added] };
+  }, [analysis, itemEdits, removedIdx, addedItems]);
 
 
   async function handleFile(file: File) {
-    // Sign-in required: no guest/anonymous access.
+    // Allow guest scans via anonymous Supabase session; prompt sign-up after.
     if (!user) {
-      setShowAuthGate(true);
-      return;
+      try {
+        const guest = await ensureGuestSession();
+        setUser(guest);
+      } catch {
+        setShowAuthGate(true);
+        return;
+      }
     }
-    if (file.size > 12 * 1024 * 1024) {
-      toast.error("Photo is too large. Please use one under 12MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result);
-      setImageDataUrl(dataUrl);
+    try {
+      const media = await prepareMedia([file]);
+      setImageDataUrl(media.primaryDataUrl);
+      setExtraFrames(media.dataUrls.slice(1));
       analyzeMut.reset();
       recipesMut.reset();
       setPendingReview(true);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "We couldn't use that file. Please try another photo or video.");
+    }
   }
 
 
@@ -473,7 +623,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
     });
     const keep = sorted.map((i) => i.name);
     const cuisineLabel = CUISINES.find((c) => c.id === cuisine)?.label ?? cuisine;
-    const restrictions = prefs.map((p) => dietLabel(p));
+    const restrictions = dietLabels(prefs, dietNotes);
     recipesMut.mutate({ items: mergeWithRecent(keep), cuisine: cuisineLabel, restrictions });
   }
 
@@ -514,53 +664,100 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
           <>
             {showIntro ? (
               <>
-                <Hero />
-                <BenefitCards />
-                <SavingsMeter />
-                <ActionGrid />
-                <WowTourButton />
-                <ShowMeWhatThisCanDoButton />
+                <ChefGreetingBadge />
+                <Hero onTryItFree={scrollToScan} showTryItFree={showSignupBlocks} />
+                <HomeFourCards onUseExistingPhoto={handleQuickAction} />
 
-                <PersonalizedWelcome />
-                <FoodPersonalityCard />
-                <QuickActionTrio />
-                <ScanHeroPanel />
-                <RescueCenter />
-                <div className="mt-4"><MemoryKitchenCard /></div>
-                <MeetChefSuperJ />
-                <UseItTonightStrip items={recentInventoryQuery.data?.items ?? []} />
-                <ChefTipOfTheDay />
-                <CuisineWheel />
-                <SavingsDashboard />
-                <SavingsBragMode />
-                <PantryTreasureHunt items={recentInventoryQuery.data?.items ?? []} />
-                <BatchKStrip items={recentInventoryQuery.data?.items ?? []} />
-                <WeeklyChallenges />
-                <FamilyFavorites compact />
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                  <SharePlateButton />
+                <section className="mx-auto w-full max-w-2xl px-4">
+                  <ExpiryAlerts className="mb-4" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button asChild variant="outline" size="lg" className="h-14 font-bold">
+                      <Link to="/grocery-list">Grocery list</Link>
+                    </Button>
+                    <Button asChild variant="outline" size="lg" className="h-14 font-bold">
+                      <Link to="/recipes">My recipes</Link>
+                    </Button>
+                  </div>
+                </section>
+
+                <SayItNaturally />
+                <TodaysInspiration
+                  items={recentInventoryQuery.data?.items ?? []}
+                  prefs={prefs}
+                />
+                <WhatsNew />
+                <div className="mx-auto mt-3 flex w-full max-w-2xl justify-center sm:mt-4">
+                  <SendSuggestion />
                 </div>
-                <QuickActions onAction={handleQuickAction} />
-                <GoingBadTile />
-                <ChefRescueTile />
-                {/* BenefitsBanner moved to top as interactive BenefitCards */}
-                <HealthSpecialNeedsStrip />
-                <ChefCompanionStrip />
-                <KitchenMagicStrip />
-                <GrowthHubStrip />
-                <FunModeStrip />
-                <SavingsHubStrip />
-                <SocialHubStrip />
-                <SmartInsightsStrip />
-                <DailyCoachStrip />
-                <LifeModeStrip />
-                <FamilyLegacyStrip />
-                <DayOfMealsStrip />
-                <InviteAndShareStrip />
 
-                <UseAnywhereBanner />
-                <FlagshipFeatures />
+
+                <WelcomeValue />
+                <BenefitCards />
+
+                {showSignupBlocks && (
+                  <>
+                    <FriendlyTrialInvite />
+                    <MembershipTiers />
+                  </>
+                )}
+
+
+                <MoreInfo label="More Ways to Cook" hideLabel="Hide cooking ideas">
+                  <PersonalizedWelcome />
+                  <ScanHeroPanel />
+                  <MeetChefSuperJ />
+                  <UseItTonightStrip items={recentInventoryQuery.data?.items ?? []} />
+                  <ChefTipOfTheDay />
+                  <GoingBadTile />
+                  <ChefRescueTile />
+                  <FoodPersonalityCard />
+                  <QuickActionTrio />
+                  <CuisineWheel />
+                  <FamilyFavorites compact />
+                  <FunModeStrip />
+                  <DayOfMealsStrip />
+                  <HealthSpecialNeedsStrip />
+                  <QuickActions onAction={handleQuickAction} />
+                </MoreInfo>
+
+                <MoreInfo label="Smart Tools" hideLabel="Hide smart tools">
+                  <div className="mt-4"><MemoryKitchenCard /></div>
+                  <KitchenMagicStrip />
+                  <SmartCookingHub />
+                  <SmartInsightsStrip />
+                  <DailyCoachStrip />
+                  <LifeModeStrip />
+                  <FamilyLegacyStrip />
+                  <GrowthHubStrip />
+                  <WeeklyChallenges />
+                  <PantryTreasureHunt items={recentInventoryQuery.data?.items ?? []} />
+                  <BatchKStrip items={recentInventoryQuery.data?.items ?? []} />
+                </MoreInfo>
+
+                <MoreInfo label="Shopping Tools" hideLabel="Hide shopping tools">
+                  <SavingsMeter />
+                  <SavingsDashboard />
+                  <SavingsHubStrip />
+                  <SavingsBragMode />
+                  <SocialHubStrip />
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                    <SharePlateButton />
+                  </div>
+                  <InviteAndShareStrip />
+                  <UseAnywhereBanner />
+                </MoreInfo>
+
+                <MoreInfo label="See everything it can do" hideLabel="Show less">
+                  <EverythingSection />
+                  <ActionGrid />
+                  <WowTourButton />
+                  <ShowMeWhatThisCanDoButton />
+                  <FlagshipFeatures />
+                </MoreInfo>
+
+
               </>
+
 
 
             ) : (
@@ -576,12 +773,12 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                 </p>
               </section>
             )}
-            <div className="mt-10 space-y-4">
+            <div ref={scanSectionRef} className="mt-10 scroll-mt-24 space-y-4">
               <Card className="ring-paper border-border/60 bg-card p-4">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-foreground">
+                <div className="mb-3 text-lg font-bold leading-snug text-foreground">
                   Where is this photo from?
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3">
                   {STORAGE_OPTS.map((s) => {
                     const active = storage === s.id;
                     return (
@@ -590,29 +787,43 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                         type="button"
                         onClick={() => setStorage(s.id)}
                         className={cn(
-                          "rounded-lg border p-2.5 text-left text-sm transition-all",
+                          "min-h-[92px] rounded-2xl border-2 p-4 text-center transition-all",
                           active
-                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                            : "border-border/60 bg-background/60 hover:border-primary/40 hover:bg-secondary",
+                            ? "border-primary bg-primary text-primary-foreground shadow-md"
+                            : "border-border/70 bg-background/60 hover:border-primary/50 hover:bg-secondary",
                         )}
                       >
-                        <div className="text-xl">{s.emoji}</div>
-                        <div className="mt-0.5 font-medium">{s.label}</div>
+                        <div className="text-3xl">{s.emoji}</div>
+                        <div className="mt-1.5 text-base font-bold">{s.label}</div>
                       </button>
                     );
                   })}
                 </div>
               </Card>
+
               <PhotoPicker
+                onPickMedia={(media) => setExtraFrames(media.dataUrls.slice(1))}
                 onPick={async (file, dataUrl) => {
-                  if (!user) {
+                  if (!realUser && !hasFreeScanLeft(freeScanKindFor(storage))) {
                     setShowAuthGate(true);
                     return;
                   }
+                  if (!user) {
+                    try {
+                      const guest = await ensureGuestSession();
+                      setUser(guest);
+                    } catch {
+                      setShowAuthGate(true);
+                      return;
+                    }
+                  }
+
                   setImageDataUrl(dataUrl);
                   analyzeMut.reset();
                   recipesMut.reset();
-                  setPendingReview(true);
+                  // The picker already showed "Use this photo" — don't ask twice.
+                  setPendingReview(false);
+                  analyzeMut.mutate(dataUrl);
                 }}
                 label="Start scanning"
               />
@@ -638,10 +849,10 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
               </Link>
             </div>
             {showAuthGate && (
-              <ScanAuthGate message="Sign in to scan your fridge, get AI inventory results, and unlock recipe suggestions." />
+              <ScanAuthGate message="You've used your free scan. Create your free account to keep scanning your fridge and cupboard, save recipes, and track what's going bad." />
             )}
 
-            {user && (
+            {realUser && (
               <>
                 <ScanHistory
                   scans={myScansQuery.data?.scans ?? []}
@@ -658,7 +869,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
               </>
             )}
             <div className="mt-8">
-              <DietaryPicker prefs={prefs} onToggle={toggle} onClear={clear} />
+              <DietaryPicker prefs={prefs} onToggle={toggle} onClear={clear} notes={dietNotes} onNotesChange={setDietNotes} />
             </div>
           </>
         )}
@@ -699,7 +910,13 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                 <img src={imageDataUrl} alt="Your fridge" className="h-full w-full object-cover" />
                 {analyzeMut.isPending && (
                   <>
-                    <ScanAnimation />
+                    <ScanAnimation storage={storage} />
+                    <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 text-center">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-black/60 px-3 py-1.5 backdrop-blur">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        <span className="font-display text-sm text-white">Your AI Chef is thinking…</span>
+                      </div>
+                    </div>
                     <div className="sr-only">
                       <ScanLoadingMessage />
                     </div>
@@ -721,6 +938,26 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
             <div className="space-y-6">
               {analysis ? (
                 <>
+                  <ChefTake reaction={chefTake ?? undefined} loading={chefTakeMut.isPending} />
+                  {(() => {
+                    const usable = analysis.items.filter((i) => i.freshness !== "throw-out" && !i.unsafe);
+                    if (usable.length === 0) return null;
+                    const useFirstNames = usable
+                      .filter((i) => i.freshness === "use-soon" || i.freshness === "questionable")
+                      .map((i) => i.name);
+                    return (
+                      <>
+                        <TonightVibe
+                          items={usable.map((i) => i.name)}
+                          useFirst={useFirstNames.slice(0, 6)}
+                          restrictions={dietLabels(prefs, dietNotes)}
+                        />
+                        <div className="text-center">
+                          <ChefFixIt items={usable.map((i) => i.name)} />
+                        </div>
+                      </>
+                    );
+                  })()}
                   {recipes ? (
                     <RecipeResults
                       recipes={recipes}
@@ -732,15 +969,54 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                       }
                     />
                   ) : recipesMut.isPending ? (
-                    <Card className="ring-paper relative grid place-items-center overflow-hidden border-dashed border-primary/40 bg-primary/5 p-8 text-center">
+                    <Card className="ring-paper relative grid place-items-center overflow-hidden border-dashed border-primary/40 bg-gradient-to-br from-primary/10 via-accent/10 to-primary/5 p-8 text-center">
                       <ScanLines active />
-                      <Loader2 className="relative z-10 h-7 w-7 animate-spin text-primary" />
-                      <p className="relative z-10 mt-3 font-display text-xl">Chef Super J is plating tonight's menu…</p>
+                      <Loader2 className="relative z-10 h-8 w-8 animate-spin text-primary" />
+                      <p className="relative z-10 mt-3 font-display text-2xl">Your AI Chef is thinking…</p>
                       <p className="relative z-10 mt-1 max-w-sm text-sm text-muted-foreground">
-                        Using what's going bad first so nothing goes to waste.
+                        Pairing what you already own with what's going bad first, so nothing goes to waste.
                       </p>
                     </Card>
                   ) : null}
+
+                  {recipes && (() => {
+                    const usable = analysis.items.filter((i) => i.freshness !== "throw-out" && !i.unsafe);
+                    const atRisk = usable.filter((i) => i.freshness === "use-soon" || i.freshness === "questionable");
+                    const rescuedCents = atRisk.reduce((sum, i) => {
+                      const cat = (i.category ?? "other").toLowerCase();
+                      const cents: Record<string, number> = {
+                        meat: 600, seafood: 700, leftover: 400, dairy: 350, produce: 250,
+                        baked: 250, frozen: 400, pantry: 200, spice: 150, herb: 200,
+                        canned: 200, grain: 200, baking: 150, beverage: 300, condiment: 200, other: 250,
+                      };
+                      return sum + (cents[cat] ?? 250);
+                    }, 0);
+                    const savedDollars = Math.max(3, Math.round(rescuedCents / 100));
+                    return (
+                      <Card className="ring-paper overflow-hidden border-primary/30 bg-gradient-to-br from-primary/10 via-accent/10 to-primary/5 p-5">
+                        <div className="text-center">
+                          <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-background/60 px-3 py-1 text-[11px] uppercase tracking-widest text-primary">
+                            <Sparkles className="h-3 w-3" /> Your kitchen tonight
+                          </div>
+                          <h3 className="mt-2 font-display text-2xl leading-tight">Look what you already have.</h3>
+                        </div>
+                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                          <div className="rounded-lg border border-primary/20 bg-background/60 p-3">
+                            <div className="font-display text-2xl text-primary">{usable.length}</div>
+                            <div className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">Ingredients owned</div>
+                          </div>
+                          <div className="rounded-lg border border-primary/20 bg-background/60 p-3">
+                            <div className="font-display text-2xl text-primary">{atRisk.length}</div>
+                            <div className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">Rescued from waste</div>
+                          </div>
+                          <div className="rounded-lg border border-primary/20 bg-background/60 p-3">
+                            <div className="font-display text-2xl text-primary">~${savedDollars}</div>
+                            <div className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">Estimated savings</div>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })()}
 
                   <div className="ring-paper rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/5 p-3 text-sm">
                     <span className="font-display text-base text-primary">Chef Super J</span>{" "}
@@ -751,12 +1027,28 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                     analysis={displayAnalysis ?? analysis}
                     confirmed={confirmedIdx}
                     onEditItem={(idx, patch) => {
+                      if (idx >= ADDED_IDX_BASE) {
+                        const i = idx - ADDED_IDX_BASE;
+                        setAddedItems((prev) => prev.map((it, j) => (j === i ? { ...it, ...patch } : it)));
+                        return;
+                      }
                       setItemEdits((prev) => ({ ...prev, [idx]: { ...prev[idx], ...patch } }));
                       setConfirmedIdx((prev) => ({ ...prev, [idx]: true }));
                     }}
                     onConfirmItem={(idx) =>
                       setConfirmedIdx((prev) => ({ ...prev, [idx]: !prev[idx] }))
                     }
+                    onRemoveItem={(idx) => {
+                      if (idx >= ADDED_IDX_BASE) {
+                        const i = idx - ADDED_IDX_BASE;
+                        setAddedItems((prev) => prev.filter((_, j) => j !== i));
+                      } else {
+                        setRemovedIdx((prev) => ({ ...prev, [idx]: true }));
+                      }
+                    }}
+                    onAddItem={(item) => {
+                      setAddedItems((prev) => [...prev, item]);
+                    }}
                     onSubmitFeedback={async ({ original, corrected, note, shareImage }) => {
                       await submitFeedbackFn({
                         data: {
@@ -828,11 +1120,18 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
 
 
               {analysis && (
+                <MatchedDishes
+                  items={analysis.items.filter((i) => i.freshness !== "throw-out" && !i.unsafe).map((i) => i.name)}
+                />
+              )}
+
+              {analysis && (
                 <PersonalizedPicks
                   itemNames={analysis.items.map((i) => i.name)}
                   prefs={prefs}
                 />
               )}
+
 
               {analysis && <TipCard />}
 
@@ -848,7 +1147,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                     <Share2 className="mr-2 h-4 w-4" /> Share scan results
                   </Button>
 
-                  {user && (
+                  {realUser && (
                     <Button
                       size="lg"
                       variant="outline"
@@ -866,9 +1165,21 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                     </Button>
                   )}
 
-                  {!user && (
-                    <Card className="border-primary/20 bg-primary/5 p-4 text-center text-sm">
-                      <span className="text-muted-foreground">Sign in to save scans and build your personal cookbook.</span>
+                  {!realUser && recipes && (
+                    <Card className="border-primary/30 bg-primary/5 p-5 text-center">
+                      <div className="font-display text-xl">Love what you see?</div>
+                      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                        Create your free account to save recipes, build your pantry, track expiration dates, and unlock unlimited scans.
+                      </p>
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        <Button asChild size="lg">
+                          <Link to="/auth">Create free account</Link>
+                        </Button>
+                        <Button asChild size="lg" variant="outline">
+                          <Link to="/auth">Sign in</Link>
+                        </Button>
+                      </div>
+                      <p className="mt-3 text-[11px] text-muted-foreground">Takes 10 seconds · No credit card required</p>
                     </Card>
                   )}
                 </div>
@@ -890,7 +1201,9 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
         {/* Value section before subscriptions */}
         <ValueSection />
 
-        {/* Subscription section — moved to bottom */}
+        {/* Pricing — visitors only */}
+        {showSignupBlocks && (
+
         <section className="mt-16">
           <div className="text-center">
             <h2 className="font-display text-2xl font-bold tracking-tight">Go Pro with Chef Super J</h2>
@@ -902,6 +1215,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
             <PlanBanners />
           </div>
         </section>
+        )}
       </main>
 
       <footer className="mt-12 border-t border-border/60 bg-card/40">
@@ -919,15 +1233,18 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
               href="https://www.thefridgeandcupboard.com"
               target="_blank"
               rel="noreferrer"
-              className="text-primary hover:underline"
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
               thefridgeandcupboard.com
             </a>
+
             <a href="/learn" className="text-foreground/80 hover:text-foreground">Learn</a>
             <a href="/meal-plan" className="text-foreground/80 hover:text-foreground">Meal Plan</a>
-            <Link to="/pro" className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground shadow-sm hover:opacity-90">
-              Go Pro · $5.99/mo
-            </Link>
+            {showSignupBlocks && (
+              <Link to="/pro" className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground shadow-sm hover:opacity-90">
+                Go Pro · $5.99/mo
+              </Link>
+            )}
           </nav>
         </div>
       </footer>
@@ -936,7 +1253,8 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
 }
 
 function TipCard() {
-  const tip = useMemo(() => TIPS[Math.floor(Math.random() * TIPS.length)], []);
+  const [tip, setTip] = useState(TIPS[0]);
+  useEffect(() => setTip(TIPS[Math.floor(Math.random() * TIPS.length)]), []);
   return (
     <Card className="border-accent/30 bg-accent/5 p-4">
       <div className="flex items-start gap-3">
@@ -1110,93 +1428,33 @@ function BeforeYouShopCTA() {
   );
 }
 
-function Hero() {
+function Hero({
+  onTryItFree,
+  showTryItFree = true,
+}: {
+  onTryItFree?: () => void;
+  showTryItFree?: boolean;
+} = {}) {
+  void onTryItFree;
+  void showTryItFree;
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-[oklch(0.86_0.08_70)]/40 shadow-[0_20px_60px_-30px_oklch(0.45_0.15_45/0.55)]">
-      {/* Hero photograph fills the whole card — text overlays it so the fridge stays visible */}
-      <div className="relative w-full aspect-[16/10] min-h-[260px] sm:aspect-[16/8] sm:min-h-[240px] md:aspect-[16/7] md:min-h-[280px]">
-        <img
-          src={heroKitchen}
-          alt="A sunlit kitchen counter overflowing with fresh tomatoes, lemons, basil, carrots, peppers, eggs, bread, parmesan, jars of pasta and rice, and a roast chicken on a blue plate"
-          className="absolute inset-0 h-full w-full object-cover"
-          width={1920}
-          height={1080}
-        />
-        {/* Very subtle bottom wash for text legibility */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
-
-        {/* Content floats over the fridge */}
-        <div className="absolute inset-x-3 bottom-3 z-10 sm:inset-x-6 sm:bottom-6">
-          <div className="rounded-2xl bg-black/10 px-4 py-4 ring-1 ring-white/10 backdrop-blur-[2px] sm:px-6 sm:py-5">
-            <div className="flex items-center justify-between gap-2">
-              <Badge
-                variant="outline"
-                className="border-white/50 bg-white/20 px-3 py-1.5 text-sm font-bold uppercase tracking-[0.14em] text-[#FFFFF0] shadow-sm"
-              >
-                <ChefHat className="mr-1.5 h-4 w-4" /> Tonight's dinner, sorted
-              </Badge>
-            </div>
-
-            <h1
-              className="mt-2 font-display text-2xl font-bold leading-tight tracking-tight text-white sm:text-3xl md:text-4xl"
-              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.6)' }}
-            >
-              Cook smarter with what you already have.
-            </h1>
-            <p
-              className="mt-1 text-[15px] leading-snug text-white sm:text-base"
-              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}
-            >
-              Save money. Waste less. Find meals fast.
-            </p>
-
-            {/* Primary action buttons */}
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const el = document.getElementById("scan");
-                  el?.scrollIntoView({ behavior: "smooth" });
-                  setTimeout(() => {
-                    const fileInput = document.querySelector('input[type=file]') as HTMLInputElement;
-                    fileInput?.click();
-                  }, 400);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-white/95 px-3 py-2.5 text-xs font-bold text-stone-800 shadow transition hover:bg-white active:scale-[0.98]"
-              >
-                <Camera className="h-4 w-4" /> Scan My Fridge
-              </button>
-              <Link
-                to="/cupboard"
-                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-white/95 px-3 py-2.5 text-xs font-bold text-stone-800 shadow transition hover:bg-white active:scale-[0.98]"
-              >
-                <Package className="h-4 w-4" /> Scan My Cupboard
-              </Link>
-              <Link
-                to="/rescue"
-                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-white/95 px-3 py-2.5 text-xs font-bold text-stone-800 shadow transition hover:bg-white active:scale-[0.98]"
-              >
-                <Soup className="h-4 w-4" /> Use My Leftovers
-              </Link>
-              <Link
-                to="/kitchen-magic"
-                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-white/95 px-3 py-2.5 text-xs font-bold text-stone-800 shadow transition hover:bg-white active:scale-[0.98]"
-              >
-                <Sparkles className="h-4 w-4" /> Surprise Me
-              </Link>
-              <Link
-                to="/health-companion"
-                className="col-span-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-white/95 px-4 py-2.5 text-xs font-bold text-stone-800 shadow transition hover:bg-white active:scale-[0.98]"
-              >
-                <Heart className="h-4 w-4" /> Make It Easy For Mom
-              </Link>
-            </div>
-          </div>
+    <section className="mt-1">
+      <div className="mx-auto w-full max-w-2xl rounded-2xl border border-white/12 bg-ink-soft/55 px-4 py-3 text-center backdrop-blur-md sm:px-5 sm:py-4">
+        <div className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-gold sm:text-xs">
+          <ChefHat className="h-3.5 w-3.5" aria-hidden="true" /> Your Personal AI Chef
         </div>
+        <h1 className="mt-1 font-display text-[1.15rem] font-semibold leading-tight tracking-tight text-ivory sm:text-[1.4rem]">
+          What can I help you make?
+        </h1>
+        <p className="mt-1 text-[12.5px] font-medium leading-snug text-ivory/75 sm:text-sm">
+          Tell me what you have, what you're craving, or what you want to avoid.
+        </p>
       </div>
     </section>
   );
 }
+
+
 
 function HomeStatsStrip({ className }: { className?: string }) {
   const [stats, setStats] = useState({ money: 0, rescued: 0, meals: 0, expiring: 0 });
@@ -1516,6 +1774,8 @@ type InventoryEditProps = {
   confirmed?: Record<number, boolean>;
   onEditItem?: (idx: number, patch: EditPatch) => void;
   onConfirmItem?: (idx: number) => void;
+  onRemoveItem?: (idx: number) => void;
+  onAddItem?: (item: AnalyzeResult["items"][number]) => void;
   onSubmitFeedback?: (payload: ItemFeedbackPayload) => Promise<void>;
 };
 
@@ -1525,8 +1785,12 @@ function InventoryPanel({
   confirmed,
   onEditItem,
   onConfirmItem,
+  onRemoveItem,
+  onAddItem,
   onSubmitFeedback,
 }: { analysis: AnalyzeResult | DisplayAnalysis } & InventoryEditProps) {
+
+  const [adding, setAdding] = useState(false);
 
   // Ensure every item carries a stable __idx so corrections target the right one
   // even after sorting/grouping.
@@ -1544,10 +1808,23 @@ function InventoryPanel({
       return da - db;
     });
 
-  const tossItems = sortItems(
-    itemsWithIdx.filter((i) => i.freshness === "throw-out" || i.freshness === "questionable" || i.unsafe),
+  // Low-confidence items the AI wasn't sure about — surface for user review.
+  const needsReview = sortItems(
+    itemsWithIdx.filter(
+      (i) =>
+        !confirmed?.[i.__idx] &&
+        typeof i.confidence === "number" &&
+        i.confidence > 0 &&
+        i.confidence < 0.6,
+    ),
   );
-  const safe = itemsWithIdx.filter(
+  const reviewIds = new Set(needsReview.map((i) => i.__idx));
+  const rest = itemsWithIdx.filter((i) => !reviewIds.has(i.__idx));
+
+  const tossItems = sortItems(
+    rest.filter((i) => i.freshness === "throw-out" || i.freshness === "questionable" || i.unsafe),
+  );
+  const safe = rest.filter(
     (i) => i.freshness !== "throw-out" && i.freshness !== "questionable" && !i.unsafe,
   );
   const goingBad = sortItems(
@@ -1559,7 +1836,7 @@ function InventoryPanel({
   const leftovers = sortItems(safe.filter((i) => i.category === "leftover"));
   const goodForLater = sortItems(safe.filter((i) => i.freshness === "fresh" && i.category !== "leftover"));
 
-  const sectionProps = { confirmed, onEditItem, onConfirmItem, onSubmitFeedback };
+  const sectionProps = { confirmed, onEditItem, onConfirmItem, onRemoveItem, onSubmitFeedback };
 
   return (
     <Card className="ring-paper border-border/60 bg-card p-5">
@@ -1570,7 +1847,7 @@ function InventoryPanel({
       {analysis.summary && <p className="mt-1 text-sm text-muted-foreground">{analysis.summary}</p>}
       {(onEditItem || onConfirmItem) && (
         <p className="mt-1 text-xs text-muted-foreground">
-          Tap any item to confirm it or correct the name, freshness, or how long it's been stored.
+          Tap any item to confirm, correct, or remove it. Missing something? Add it below.
         </p>
       )}
 
@@ -1582,6 +1859,30 @@ function InventoryPanel({
           <ul className="space-y-0.5 text-foreground/90">
             {analysis.safetyWarnings.map((w, i) => <li key={i}>· {w}</li>)}
           </ul>
+        </div>
+      )}
+
+      {needsReview.length > 0 && (
+        <div className="mt-4 rounded-lg border border-warning/40 bg-warning/5 p-3">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-warning-foreground">
+            <HelpCircle className="h-4 w-4" /> Needs your review ({needsReview.length})
+          </div>
+          <p className="mb-2 text-xs text-muted-foreground">
+            The AI wasn't fully sure about these. Tap to confirm, rename, or remove.
+          </p>
+          <div className="grid gap-2">
+            {needsReview.map((item) => (
+              <ItemRow
+                key={`review-${item.__idx}`}
+                item={item}
+                isConfirmed={!!confirmed?.[item.__idx]}
+                onEdit={onEditItem ? (patch) => onEditItem(item.__idx, patch) : undefined}
+                onConfirm={onConfirmItem ? () => onConfirmItem(item.__idx) : undefined}
+                onRemove={onRemoveItem ? () => onRemoveItem(item.__idx) : undefined}
+                onSubmitFeedback={onSubmitFeedback}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -1604,6 +1905,29 @@ function InventoryPanel({
         emptyHint="Nothing to throw out — clean fridge!"
         {...sectionProps}
       />
+
+      {onAddItem && (
+        <div className="mt-5 border-t border-border/50 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setAdding(true)}
+            className="gap-1"
+          >
+            <Plus className="h-4 w-4" /> Add missing item
+          </Button>
+          {adding && (
+            <AddItemDialog
+              onClose={() => setAdding(false)}
+              onAdd={(item) => {
+                onAddItem(item);
+                setAdding(false);
+              }}
+            />
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1624,6 +1948,7 @@ function InventorySection({
   confirmed,
   onEditItem,
   onConfirmItem,
+  onRemoveItem,
   onSubmitFeedback,
 }: {
   title: string;
@@ -1649,6 +1974,7 @@ function InventorySection({
               isConfirmed={!!confirmed?.[item.__idx]}
               onEdit={onEditItem ? (patch) => onEditItem(item.__idx, patch) : undefined}
               onConfirm={onConfirmItem ? () => onConfirmItem(item.__idx) : undefined}
+              onRemove={onRemoveItem ? () => onRemoveItem(item.__idx) : undefined}
               onSubmitFeedback={onSubmitFeedback}
             />
           ))}
@@ -1664,23 +1990,37 @@ function ItemRow({
   isConfirmed,
   onEdit,
   onConfirm,
+  onRemove,
   onSubmitFeedback,
 }: {
   item: DisplayItem;
   isConfirmed?: boolean;
   onEdit?: (patch: EditPatch) => void;
   onConfirm?: () => void;
+  onRemove?: () => void;
   onSubmitFeedback?: (payload: ItemFeedbackPayload) => Promise<void>;
 }) {
 
   const [editing, setEditing] = useState(false);
+  const { prefs: dietPrefs } = useDietaryPrefs();
+  const citricScreen = dietPrefs.includes("no-citric-acid")
+    ? screenForCitricAcid(`${item.name} ${item.notes ?? ""}`)
+    : "ok";
   const style = freshnessStyles[item.freshness] ?? freshnessStyles.fresh;
   const Icon = style.icon;
   const confidencePct = Math.round(((item.confidence ?? 0)) * 100);
   const editable = !!onEdit;
+  const lowConfidence = !isConfirmed && confidencePct > 0 && confidencePct < 60;
 
   const content = (
-    <div className="flex w-full items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/60 p-3 text-left transition hover:border-primary/40 hover:bg-background">
+    <div
+      className={cn(
+        "flex w-full items-start justify-between gap-3 rounded-xl border p-3 text-left transition hover:border-primary/40 hover:bg-background",
+        lowConfidence
+          ? "border-warning/50 bg-warning/5"
+          : "border-border/60 bg-background/60",
+      )}
+    >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="font-medium text-foreground">{item.name}</span>
@@ -1697,15 +2037,16 @@ function ItemRow({
           ) : confidencePct > 0 ? (
             <span
               className={cn(
-                "rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
+                "inline-flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
                 confidencePct >= 80
                   ? "bg-success/10 text-success"
-                  : confidencePct >= 50
+                  : confidencePct >= 60
                     ? "bg-warning/15 text-warning-foreground"
-                    : "bg-muted text-muted-foreground",
+                    : "bg-warning/25 text-warning-foreground",
               )}
               title="AI confidence in identification"
             >
+              {confidencePct < 60 && <HelpCircle className="h-3 w-3" />}
               {confidencePct}% sure
             </span>
           ) : null}
@@ -1718,11 +2059,28 @@ function ItemRow({
             : ""}
           {item.notes ? ` · ${item.notes}` : ""}
         </div>
+        {citricScreen === "avoid" && (
+          <div className="mt-1 text-[11px] font-medium text-destructive">
+            Contains citrus / citric acid — excluded by your No Citric Acid filter.
+          </div>
+        )}
+        {citricScreen === "maybe" && (
+          <div className="mt-1 text-[11px] font-medium text-warning-foreground">
+            {CITRIC_ACID_WARNING}
+          </div>
+        )}
+        {lowConfidence && (
+          <div className="mt-1 text-[11px] font-medium text-warning-foreground">
+            AI wasn't sure — tap to confirm, rename, or remove.
+          </div>
+        )}
 
         {item.unsafe && item.unsafeReason && (
           <div className="mt-1 text-xs font-medium text-destructive">⚠ {item.unsafeReason}</div>
         )}
       </div>
+
+
       <div className="flex shrink-0 flex-col items-end gap-1">
         <Badge variant="outline" className={cn("gap-1 border", style.className)}>
           <Icon className="h-3 w-3" /> {style.label}
@@ -1736,7 +2094,15 @@ function ItemRow({
     </div>
   );
 
-  if (!editable) return content;
+  if (!editable)
+    return (
+      <div>
+        {content}
+        <div className="px-3">
+          <FoodInsightsLink food={item.name} />
+        </div>
+      </div>
+    );
 
   return (
     <>
@@ -1748,6 +2114,10 @@ function ItemRow({
       >
         {content}
       </button>
+      <div className="px-3">
+        <FoodInsightsLink food={item.name} />
+      </div>
+
       {editing && (
         <ItemEditDialog
           item={item}
@@ -1761,6 +2131,14 @@ function ItemRow({
             onConfirm
               ? () => {
                   onConfirm();
+                  setEditing(false);
+                }
+              : undefined
+          }
+          onRemove={
+            onRemove
+              ? () => {
+                  onRemove();
                   setEditing(false);
                 }
               : undefined
@@ -1795,6 +2173,7 @@ function ItemEditDialog({
   onClose,
   onSave,
   onConfirm,
+  onRemove,
   onSubmitFeedback,
 }: {
   item: DisplayItem;
@@ -1802,6 +2181,7 @@ function ItemEditDialog({
   onClose: () => void;
   onSave: (patch: EditPatch) => void;
   onConfirm?: () => void;
+  onRemove?: () => void;
   onSubmitFeedback?: (payload: ItemFeedbackPayload) => Promise<void>;
 }) {
   const [name, setName] = useState(item.name);
@@ -1955,16 +2335,28 @@ function ItemEditDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-          {onConfirm && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onConfirm}
-              className="gap-1"
-            >
-              <Check className="h-4 w-4" /> {isConfirmed ? "Unconfirm" : "Looks right"}
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {onConfirm && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onConfirm}
+                className="gap-1"
+              >
+                <Check className="h-4 w-4" /> {isConfirmed ? "Unconfirm" : "Looks right"}
+              </Button>
+            )}
+            {onRemove && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onRemove}
+                className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" /> Not there
+              </Button>
+            )}
+          </div>
           <div className="flex gap-2 sm:ml-auto">
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button type="button" onClick={() => onSave(buildPatch())}>
@@ -1977,6 +2369,153 @@ function ItemEditDialog({
   );
 
 }
+
+const CATEGORY_OPTIONS = [
+  "produce",
+  "dairy",
+  "meat",
+  "seafood",
+  "leftover",
+  "condiment",
+  "beverage",
+  "frozen",
+  "pantry",
+  "spice",
+  "herb",
+  "baking",
+  "canned",
+  "grain",
+  "baked",
+  "other",
+];
+
+function AddItemDialog({
+  onClose,
+  onAdd,
+}: {
+  onClose: () => void;
+  onAdd: (item: AnalyzeResult["items"][number]) => void;
+}) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("other");
+  const [freshness, setFreshness] = useState<DisplayItem["freshness"]>("fresh");
+  const [quantity, setQuantity] = useState("");
+  const [estimatedAge, setEstimatedAge] = useState("");
+
+  function handleAdd() {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const daysMap: Record<DisplayItem["freshness"], [number, number]> = {
+      fresh: [5, 10],
+      "use-soon": [1, 2],
+      questionable: [0, 2],
+      "throw-out": [0, 0],
+    };
+    const [minD, maxD] = daysMap[freshness];
+    onAdd({
+      name: trimmed,
+      category: category || "other",
+      freshness,
+      estimatedAge: estimatedAge.trim() || "unclear",
+      timeLeftMinDays: minD,
+      timeLeftMaxDays: maxD,
+      timeLeftLabel:
+        freshness === "fresh"
+          ? "about a week"
+          : freshness === "use-soon"
+            ? "1-2 days left"
+            : freshness === "questionable"
+              ? "use today"
+              : "toss",
+      freshnessConfidence: 1,
+      freshnessReason: "Added by user",
+      estimatedQuantity: quantity.trim() || "unknown",
+      container: "",
+      containerAssumption: "",
+      confidence: 1,
+      matchKeywords: [trimmed.toLowerCase()],
+      notes: "Added by you",
+      unsafe: false,
+      unsafeReason: "",
+      priorityRank: 500,
+      useFirst: freshness === "use-soon" || freshness === "questionable",
+    });
+    setName("");
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add a missing item</DialogTitle>
+          <DialogDescription>
+            The scanner didn't spot this? Add it so we can use it in recipes.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="add-name">Food item</Label>
+            <Input
+              id="add-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. leftover roast chicken"
+              autoFocus
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CATEGORY_OPTIONS.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Freshness</Label>
+            <Select value={freshness} onValueChange={(v) => setFreshness(v as DisplayItem["freshness"])}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {FRESHNESS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="add-qty">Quantity (optional)</Label>
+            <Input
+              id="add-qty"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder="e.g. 1 cup, half a jar"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="add-age">How long has it been stored? (optional)</Label>
+            <Input
+              id="add-age"
+              value={estimatedAge}
+              onChange={(e) => setEstimatedAge(e.target.value)}
+              placeholder="e.g. 2-3 days"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="button" onClick={handleAdd} disabled={!name.trim()} className="gap-1">
+            <Plus className="h-4 w-4" /> Add item
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 
 
 
@@ -1994,6 +2533,10 @@ function CuisinePicker({
   loading: boolean;
   hasRecipes?: boolean;
 }) {
+  const { prefs: dietPrefs, toggle: toggleDiet } = useDietaryPrefs();
+  const noCitric = dietPrefs.includes("no-citric-acid");
+  const gerd = dietPrefs.includes("gerd-friendly");
+  const [gerdInfoOpen, setGerdInfoOpen] = useState(false);
   return (
     <Card className="ring-paper border-border/60 bg-card p-5">
       <h2 className="font-display text-2xl">
@@ -2024,6 +2567,55 @@ function CuisinePicker({
           );
         })}
       </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-pressed={noCitric}
+          onClick={() => toggleDiet("no-citric-acid")}
+          className={cn(
+            "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+            noCitric
+              ? "border-primary bg-primary text-primary-foreground shadow-sm"
+              : "border-border/60 bg-background/60 text-foreground hover:border-primary/40 hover:bg-secondary",
+          )}
+          title="Avoid citric acid, E330, and all citrus fruits, juices, zests and extracts"
+        >
+          🚫🍋 No Citric Acid
+        </button>
+        <button
+          type="button"
+          aria-pressed={gerd}
+          onClick={() => {
+            const turningOn = !gerd;
+            toggleDiet("gerd-friendly");
+            if (turningOn) setGerdInfoOpen(true);
+          }}
+          className={cn(
+            "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+            gerd
+              ? "border-primary bg-primary text-primary-foreground shadow-sm"
+              : "border-border/60 bg-background/60 text-foreground hover:border-primary/40 hover:bg-secondary",
+          )}
+          title="Avoid common acid reflux trigger foods"
+        >
+          💚 GERD-Friendly
+        </button>
+        {noCitric && (
+          <span className="text-[11px] text-muted-foreground">
+            Citrus &amp; citric acid (E330) will be screened out of ingredients and recipes.
+          </span>
+        )}
+        {gerd && (
+          <button
+            type="button"
+            onClick={() => setGerdInfoOpen(true)}
+            className="text-[11px] text-muted-foreground underline underline-offset-2"
+          >
+            Common reflux triggers are screened out — read the GERD guide
+          </button>
+        )}
+      </div>
+      <GerdInfoCard open={gerdInfoOpen} onClose={() => setGerdInfoOpen(false)} />
       <Button
         size="lg"
         onClick={onSubmit}
@@ -2216,11 +2808,37 @@ function RecipeSection({
             </div>
 
 
+            {/* At-a-glance chip row: prep · cook · servings · calories */}
+            {(r.prepMinutes || r.cookMinutes || r.servings || r.nutrition) && (
+              <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+                {typeof r.prepMinutes === "number" && r.prepMinutes > 0 && (
+                  <span className="rounded-full border border-border/60 bg-secondary/60 px-2 py-0.5 text-secondary-foreground">
+                    Prep {r.prepMinutes}m
+                  </span>
+                )}
+                {typeof r.cookMinutes === "number" && r.cookMinutes > 0 && (
+                  <span className="rounded-full border border-border/60 bg-secondary/60 px-2 py-0.5 text-secondary-foreground">
+                    Cook {r.cookMinutes}m
+                  </span>
+                )}
+                {typeof r.servings === "number" && r.servings > 0 && (
+                  <span className="rounded-full border border-border/60 bg-secondary/60 px-2 py-0.5 text-secondary-foreground">
+                    Serves {r.servings}
+                  </span>
+                )}
+                {r.nutrition && (
+                  <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-primary/90">
+                    ~{Math.round(r.nutrition.calories)} cal · {Math.round(r.nutrition.proteinG)}g P
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-success/30 bg-success/5 p-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-success">From your fridge</div>
                 <ul className="mt-1.5 space-y-0.5 text-sm">
-                  {r.usesFromFridge.map((x, j) => <li key={j}>· {x}</li>)}
+                  {r.usesFromFridge.map((x, j) => <li key={j}>· {displayIngredientLine(x)}</li>)}
                 </ul>
               </div>
               <div className={cn(
@@ -2245,11 +2863,26 @@ function RecipeSection({
                 )}
                 <ul className="mt-1.5 space-y-0.5 text-sm">
                   {r.alsoNeed.length > 0
-                    ? r.alsoNeed.map((x, j) => <li key={j}>· {x}</li>)
+                    ? r.alsoNeed.map((x, j) => <li key={j}>· {displayIngredientLine(x)}</li>)
                     : <li className="text-muted-foreground">Nothing — start cooking!</li>}
                 </ul>
               </div>
             </div>
+
+            {/* Substitutions — inline when the model provided any */}
+            {Array.isArray(r.substitutions) && r.substitutions.length > 0 && (
+              <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-primary">Don't have something? Try:</div>
+                <ul className="mt-1.5 space-y-1 text-sm">
+                  {r.substitutions.slice(0, 4).map((s, j) => (
+                    <li key={j} className="text-foreground/90">
+                      <span className="font-medium">No {s.missing}?</span> Use {s.swapWith}
+                      {s.note && <span className="text-muted-foreground"> — {s.note}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <ol className="mt-4 space-y-1.5 text-sm text-foreground/90">
               {r.steps.map((s, j) => (
@@ -2269,6 +2902,15 @@ function RecipeSection({
               </div>
             )}
 
+            {/* Storage & food-safety guidance for leftovers */}
+            {r.storageTip && r.storageTip.trim().length > 0 && (
+              <div className="mt-3 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground/80">Leftovers · </span>
+                {r.storageTip}
+              </div>
+            )}
+
+
             <div className="mt-4 flex flex-wrap gap-2">
               <Button onClick={() => setCookingIdx(i)} className="flex-1 font-semibold">
                 <Play className="mr-2 h-4 w-4" /> Start cooking — guide me step by step
@@ -2285,6 +2927,9 @@ function RecipeSection({
                 })}
               />
             </div>
+
+            <RecipeActions recipe={r} />
+
 
             {onCooked && (
               <div className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">

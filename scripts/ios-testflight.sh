@@ -27,6 +27,15 @@ if grep -q "CapApp-SPM" ios/App/App.xcodeproj/project.pbxproj; then
   echo "A second Capacitor package source is present; refusing to build." >&2
   exit 1
 fi
+node - <<'NODE'
+const pkg = require('./package.json')
+const clean = (value) => String(value || '').replace(/^[^0-9]*/, '')
+const versions = [pkg.dependencies['@capacitor/core'], pkg.devDependencies['@capacitor/ios'], pkg.devDependencies['@capacitor/cli']].map(clean)
+if (!versions[0] || new Set(versions).size !== 1) {
+  console.error(`Capacitor core, iOS, and CLI must match exactly: ${versions.join(', ')}`)
+  process.exit(1)
+}
+NODE
 
 : "${ASC_KEY_ID:?missing}"
 : "${APP_STORE_CONNECT_API_ISSUER_ID:?missing}"
@@ -81,6 +90,10 @@ if [ "$(wc -c < "$START" | tr -d ' ')" -lt 10000 ] || ! grep -q '/assets/' "$STA
 fi
 if ! grep -q 'tfc.launch.reloaded' "$START"; then
   echo "The packaged start page is missing the launch path guard." >&2
+  exit 1
+fi
+if grep -q 'AVAudioSession' ios/App/App/AppDelegate.swift; then
+  echo "AppDelegate must not perform native audio work during launch or activation." >&2
   exit 1
 fi
 if grep -Eq 'SpeechRecognition|PushNotificationsPlugin' "$CONFIG" || \

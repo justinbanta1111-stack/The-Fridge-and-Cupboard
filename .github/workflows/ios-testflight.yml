@@ -104,6 +104,19 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Verify Capacitor core and iOS versions match
+        run: |
+          node - <<'NODE'
+          const pkg = require('./package.json')
+          const clean = (value) => String(value || '').replace(/^[^0-9]*/, '')
+          const versions = [pkg.dependencies['@capacitor/core'], pkg.devDependencies['@capacitor/ios'], pkg.devDependencies['@capacitor/cli']].map(clean)
+          if (!versions[0] || new Set(versions).size !== 1) {
+            console.error(`::error::Capacitor core, iOS, and CLI must match exactly: ${versions.join(', ')}`)
+            process.exit(1)
+          }
+          console.log(`OK: Capacitor core, iOS, and CLI are all ${versions[0]}.`)
+          NODE
+
       - name: Build web bundle
         env:
           NODE_ENV: production
@@ -156,6 +169,10 @@ jobs:
           fi
           if ! grep -q 'tfc.launch.reloaded' "$START"; then
             echo "::error::The packaged start page is missing the launch path guard."
+            exit 1
+          fi
+          if grep -q 'AVAudioSession' ios/App/App/AppDelegate.swift; then
+            echo "::error::AppDelegate performs native audio work during launch or app activation."
             exit 1
           fi
           if grep -Eq 'SpeechRecognition|PushNotificationsPlugin' "$CONFIG" || \

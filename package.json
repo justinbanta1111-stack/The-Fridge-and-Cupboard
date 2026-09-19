@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "build:native": "vite build && node scripts/build-native-shell.mjs",
+    "cap:sync:ios": "bunx cap sync ios && rm -rf ios/App/CapApp-SPM && node scripts/ios-prune-unused-plugins.mjs",
     "ios:testflight": "bash scripts/ios-testflight.sh"
   },
   "dependencies": {
