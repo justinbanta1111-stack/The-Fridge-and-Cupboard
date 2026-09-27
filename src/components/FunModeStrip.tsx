@@ -5,7 +5,8 @@ export function FunModeStrip() {
   return (
     <Link
       to="/fun-mode"
-      className="group flex items-center justify-between gap-3 rounded-2xl border border-border bg-gradient-to-r from-fuchsia-500/10 via-amber-400/10 to-emerald-500/10 p-3 shadow-sm transition hover:shadow"
+      data-reveal
+      className="press-lift sheen sheen-slow group flex items-center justify-between gap-3 rounded-2xl border border-border bg-gradient-to-r from-fuchsia-500/10 via-amber-400/10 to-emerald-500/10 p-3 shadow-sm hover:shadow"
     >
       <div className="flex items-center gap-3">
         <div className="rounded-xl bg-background p-2 text-fuchsia-600 shadow-sm">

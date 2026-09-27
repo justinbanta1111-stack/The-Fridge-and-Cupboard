@@ -3,6 +3,7 @@ import { MessageCircle, Mail, Facebook, Copy, Check, Share2, Send, X } from "luc
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { haptic, nativeShareSheet } from "@/lib/native-bridge";
 
 export type ShareMenuProps = {
   /** Label on the trigger button */
@@ -42,6 +43,12 @@ export function ShareMenu({
   const fullText = url && !text.includes(url) ? `${text}\n\n${url}` : text;
 
   async function nativeShare() {
+    // Inside the iOS / Android app, use the real system share sheet.
+    if (await nativeShareSheet({ title, text: fullText, url, dialogTitle: title })) {
+      void haptic("light");
+      setOpen(false);
+      return true;
+    }
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({ title, text: fullText, url });

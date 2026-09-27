@@ -9,362 +9,129 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UseItSoonRouteImport } from './routes/use-it-soon'
-import { Route as TypeIngredientsRouteImport } from './routes/type-ingredients'
-import { Route as TestChecklistRouteImport } from './routes/test-checklist'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SyncStatusRouteImport } from './routes/sync-status'
-import { Route as SupportRouteImport } from './routes/support'
-import { Route as SubscriptionTermsRouteImport } from './routes/subscription-terms'
-import { Route as SocialHubRouteImport } from './routes/social-hub'
-import { Route as SmartKitchenRouteImport } from './routes/smart-kitchen'
-import { Route as SmartInsightsRouteImport } from './routes/smart-insights'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as ShoppingAssistantRouteImport } from './routes/shopping-assistant'
-import { Route as SeniorsRouteImport } from './routes/seniors'
-import { Route as ScanRouteImport } from './routes/scan'
-import { Route as SavingsHubRouteImport } from './routes/savings-hub'
-import { Route as SavingsRouteImport } from './routes/savings'
-import { Route as SavedRouteImport } from './routes/saved'
-import { Route as RescueRouteImport } from './routes/rescue'
-import { Route as RemindersRouteImport } from './routes/reminders'
-import { Route as ReferralsRouteImport } from './routes/referrals'
-import { Route as ProRouteImport } from './routes/pro'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as PreserveRouteImport } from './routes/preserve'
-import { Route as PremiumRecommendationsRouteImport } from './routes/premium-recommendations'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as MemoryKitchenRouteImport } from './routes/memory-kitchen'
-import { Route as MealPlanRouteImport } from './routes/meal-plan'
-import { Route as LifeModeRouteImport } from './routes/life-mode'
-import { Route as LearnRouteImport } from './routes/learn'
-import { Route as KitchenToolsRouteImport } from './routes/kitchen-tools'
-import { Route as KitchenMagicRouteImport } from './routes/kitchen-magic'
-import { Route as KitchenBasicsRouteImport } from './routes/kitchen-basics'
-import { Route as KidsRouteImport } from './routes/kids'
-import { Route as HealthCompanionRouteImport } from './routes/health-companion'
-import { Route as HealthRouteImport } from './routes/health'
-import { Route as GrowthRouteImport } from './routes/growth'
-import { Route as GroceryPlusRouteImport } from './routes/grocery-plus'
-import { Route as GoingBadRouteImport } from './routes/going-bad'
-import { Route as FunModeRouteImport } from './routes/fun-mode'
-import { Route as FoodPreferencesRouteImport } from './routes/food-preferences'
-import { Route as FeaturesRouteImport } from './routes/features'
-import { Route as FastingRouteImport } from './routes/fasting'
-import { Route as FamilyLegacyRouteImport } from './routes/family-legacy'
-import { Route as DrinksRouteImport } from './routes/drinks'
-import { Route as DeleteAccountRouteImport } from './routes/delete-account'
-import { Route as DayOfMealsRouteImport } from './routes/day-of-meals'
-import { Route as DailyCoachRouteImport } from './routes/daily-coach'
-import { Route as CupboardRouteImport } from './routes/cupboard'
-import { Route as CommunityRouteImport } from './routes/community'
-import { Route as ChefRescueRouteImport } from './routes/chef-rescue'
-import { Route as ChefCompanionRouteImport } from './routes/chef-companion'
-import { Route as BodybuilderRouteImport } from './routes/bodybuilder'
-import { Route as BeforeYouShopRouteImport } from './routes/before-you-shop'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AroundTheWorldRouteImport } from './routes/around-the-world'
-import { Route as AccountRouteImport } from './routes/account'
-import { Route as AcademyRouteImport } from './routes/academy'
-import { Route as AboutChefRouteImport } from './routes/about-chef'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutChefRouteImport } from './routes/about-chef'
+import { Route as AcademyRouteImport } from './routes/academy'
+import { Route as AccountRouteImport } from './routes/account'
+import { Route as AroundTheWorldRouteImport } from './routes/around-the-world'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BeforeYouShopRouteImport } from './routes/before-you-shop'
+import { Route as BodybuilderRouteImport } from './routes/bodybuilder'
+import { Route as BudgetPlanRouteImport } from './routes/budget-plan'
+import { Route as BulkShoppingRouteImport } from './routes/bulk-shopping'
+import { Route as ChefCompanionRouteImport } from './routes/chef-companion'
+import { Route as ChefRescueRouteImport } from './routes/chef-rescue'
+import { Route as CommunityRouteImport } from './routes/community'
+import { Route as CookWithChefRouteImport } from './routes/cook-with-chef'
+import { Route as CupboardRouteImport } from './routes/cupboard'
+import { Route as DailyCoachRouteImport } from './routes/daily-coach'
+import { Route as DayOfMealsRouteImport } from './routes/day-of-meals'
+import { Route as DeleteAccountRouteImport } from './routes/delete-account'
+import { Route as DrinksRouteImport } from './routes/drinks'
+import { Route as ExpiryRouteImport } from './routes/expiry'
+import { Route as FamilyLegacyRouteImport } from './routes/family-legacy'
+import { Route as FastingRouteImport } from './routes/fasting'
+import { Route as FeaturesRouteImport } from './routes/features'
+import { Route as FoodPreferencesRouteImport } from './routes/food-preferences'
+import { Route as FridgeScanRouteImport } from './routes/fridge-scan'
+import { Route as FunModeRouteImport } from './routes/fun-mode'
+import { Route as GerdRouteImport } from './routes/gerd'
+import { Route as GoingBadRouteImport } from './routes/going-bad'
+import { Route as GroceryListRouteImport } from './routes/grocery-list'
+import { Route as GroceryPlusRouteImport } from './routes/grocery-plus'
+import { Route as GrowthRouteImport } from './routes/growth'
+import { Route as HealthRouteImport } from './routes/health'
+import { Route as HealthCompanionRouteImport } from './routes/health-companion'
+import { Route as KidsRouteImport } from './routes/kids'
+import { Route as KitchenBasicsRouteImport } from './routes/kitchen-basics'
+import { Route as KitchenGuideRouteImport } from './routes/kitchen-guide'
+import { Route as KitchenMagicRouteImport } from './routes/kitchen-magic'
+import { Route as KitchenToolsRouteImport } from './routes/kitchen-tools'
+import { Route as LearnRouteImport } from './routes/learn'
+import { Route as LeftoversRouteImport } from './routes/leftovers'
+import { Route as LeftoversBuilderRouteImport } from './routes/leftovers-builder'
+import { Route as LifeModeRouteImport } from './routes/life-mode'
+import { Route as MealCostsRouteImport } from './routes/meal-costs'
+import { Route as MealPlanRouteImport } from './routes/meal-plan'
+import { Route as MemoryKitchenRouteImport } from './routes/memory-kitchen'
+import { Route as MobileQaRouteImport } from './routes/mobile-qa'
+import { Route as NearbyStoresRouteImport } from './routes/nearby-stores'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PremiumRecommendationsRouteImport } from './routes/premium-recommendations'
+import { Route as PreserveRouteImport } from './routes/preserve'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ProRouteImport } from './routes/pro'
+import { Route as RecipeCardRouteImport } from './routes/recipe-card'
+import { Route as RecipesRouteImport } from './routes/recipes'
+import { Route as ReferralsRouteImport } from './routes/referrals'
+import { Route as RemindersRouteImport } from './routes/reminders'
+import { Route as RescueRouteImport } from './routes/rescue'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SavedRouteImport } from './routes/saved'
+import { Route as SavingsRouteImport } from './routes/savings'
+import { Route as SavingsHubRouteImport } from './routes/savings-hub'
+import { Route as ScanRouteImport } from './routes/scan'
+import { Route as ScanHistoryRouteImport } from './routes/scan-history'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as SeniorsRouteImport } from './routes/seniors'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ShoppingAssistantRouteImport } from './routes/shopping-assistant'
+import { Route as ShoppingListRouteImport } from './routes/shopping-list'
+import { Route as ShoppingPlanRouteImport } from './routes/shopping-plan'
+import { Route as ShoppingTripRouteImport } from './routes/shopping-trip'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as SmartInsightsRouteImport } from './routes/smart-insights'
+import { Route as SmartKitchenRouteImport } from './routes/smart-kitchen'
+import { Route as SocialHubRouteImport } from './routes/social-hub'
+import { Route as StoreHelpRouteImport } from './routes/store-help'
+import { Route as StoreModeRouteImport } from './routes/store-mode'
+import { Route as StoreScanRouteImport } from './routes/store-scan'
+import { Route as StretchMyGroceriesRouteImport } from './routes/stretch-my-groceries'
+import { Route as StyleIdeasRouteImport } from './routes/style-ideas'
+import { Route as SubscriptionTermsRouteImport } from './routes/subscription-terms'
+import { Route as SubstitutionsRouteImport } from './routes/substitutions'
+import { Route as SupportRouteImport } from './routes/support'
+import { Route as SyncStatusRouteImport } from './routes/sync-status'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TestChecklistRouteImport } from './routes/test-checklist'
+import { Route as TypeIngredientsRouteImport } from './routes/type-ingredients'
+import { Route as UseItSoonRouteImport } from './routes/use-it-soon'
+import { Route as VoiceProfilesRouteImport } from './routes/voice-profiles'
 import { Route as AcademyIndexRouteImport } from './routes/academy.index'
-import { Route as CheckoutReturnRouteImport } from './routes/checkout.return'
-import { Route as AdminBuildSecretsRouteImport } from './routes/admin.build-secrets'
-import { Route as AcademyAskRouteImport } from './routes/academy.ask'
 import { Route as AcademySectionRouteImport } from './routes/academy.$section'
-import { Route as ApiPublicTfDispatchRouteImport } from './routes/api/public/tf-dispatch'
-import { Route as ApiAdminTriggerBuildRouteImport } from './routes/api/admin/trigger-build'
-import { Route as ApiAdminPatPermissionsCheckRouteImport } from './routes/api/admin/pat-permissions-check'
-import { Route as ApiAdminBuildStatusRouteImport } from './routes/api/admin/build-status'
-import { Route as ApiAdminBuildSecretsStatusRouteImport } from './routes/api/admin/build-secrets-status'
-import { Route as ApiAdminBuildPreflightRouteImport } from './routes/api/admin/build-preflight'
+import { Route as AcademyAskRouteImport } from './routes/academy.ask'
+import { Route as AdminBuildSecretsRouteImport } from './routes/admin.build-secrets'
+import { Route as AdminIosSecretsCheckRouteImport } from './routes/admin.ios-secrets-check'
+import { Route as AdminVoiceHealthRouteImport } from './routes/admin.voice-health'
+import { Route as CheckoutReturnRouteImport } from './routes/checkout.return'
+import { Route as CookingQuestionsIndexRouteImport } from './routes/cooking-questions.index'
+import { Route as CookingQuestionsQuestionRouteImport } from './routes/cooking-questions.$question'
+import { Route as CuisinesIndexRouteImport } from './routes/cuisines.index'
+import { Route as CuisinesCuisineRouteImport } from './routes/cuisines.$cuisine'
+import { Route as DietsIndexRouteImport } from './routes/diets.index'
+import { Route as DietsDietRouteImport } from './routes/diets.$diet'
+import { Route as HowToMakeIndexRouteImport } from './routes/how-to-make.index'
+import { Route as HowToMakeDishRouteImport } from './routes/how-to-make.$dish'
+import { Route as IngredientsIndexRouteImport } from './routes/ingredients.index'
+import { Route as IngredientsIngredientRouteImport } from './routes/ingredients.$ingredient'
+import { Route as LeftoverIdeasIndexRouteImport } from './routes/leftover-ideas.index'
+import { Route as LeftoverIdeasLeftoverRouteImport } from './routes/leftover-ideas.$leftover'
 import { Route as ApiAdminBuildConfigCheckRouteImport } from './routes/api/admin/build-config-check'
+import { Route as ApiAdminBuildPreflightRouteImport } from './routes/api/admin/build-preflight'
+import { Route as ApiAdminBuildSecretsStatusRouteImport } from './routes/api/admin/build-secrets-status'
+import { Route as ApiAdminBuildStatusRouteImport } from './routes/api/admin/build-status'
+import { Route as ApiAdminPatPermissionsCheckRouteImport } from './routes/api/admin/pat-permissions-check'
+import { Route as ApiAdminTestflightDryCheckRouteImport } from './routes/api/admin/testflight-dry-check'
+import { Route as ApiAdminTriggerBuildRouteImport } from './routes/api/admin/trigger-build'
+import { Route as ApiPublicOgRouteImport } from './routes/api/public/og'
+import { Route as ApiPublicTfDispatchRouteImport } from './routes/api/public/tf-dispatch'
+import { Route as ApiPublicEmailConfirmationRemindersRouteImport } from './routes/api/public/email/confirmation-reminders'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 
-const UseItSoonRoute = UseItSoonRouteImport.update({
-  id: '/use-it-soon',
-  path: '/use-it-soon',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TypeIngredientsRoute = TypeIngredientsRouteImport.update({
-  id: '/type-ingredients',
-  path: '/type-ingredients',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TestChecklistRoute = TestChecklistRouteImport.update({
-  id: '/test-checklist',
-  path: '/test-checklist',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SyncStatusRoute = SyncStatusRouteImport.update({
-  id: '/sync-status',
-  path: '/sync-status',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SupportRoute = SupportRouteImport.update({
-  id: '/support',
-  path: '/support',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SubscriptionTermsRoute = SubscriptionTermsRouteImport.update({
-  id: '/subscription-terms',
-  path: '/subscription-terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SocialHubRoute = SocialHubRouteImport.update({
-  id: '/social-hub',
-  path: '/social-hub',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SmartKitchenRoute = SmartKitchenRouteImport.update({
-  id: '/smart-kitchen',
-  path: '/smart-kitchen',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SmartInsightsRoute = SmartInsightsRouteImport.update({
-  id: '/smart-insights',
-  path: '/smart-insights',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ShoppingAssistantRoute = ShoppingAssistantRouteImport.update({
-  id: '/shopping-assistant',
-  path: '/shopping-assistant',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SeniorsRoute = SeniorsRouteImport.update({
-  id: '/seniors',
-  path: '/seniors',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScanRoute = ScanRouteImport.update({
-  id: '/scan',
-  path: '/scan',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SavingsHubRoute = SavingsHubRouteImport.update({
-  id: '/savings-hub',
-  path: '/savings-hub',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SavingsRoute = SavingsRouteImport.update({
-  id: '/savings',
-  path: '/savings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SavedRoute = SavedRouteImport.update({
-  id: '/saved',
-  path: '/saved',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RescueRoute = RescueRouteImport.update({
-  id: '/rescue',
-  path: '/rescue',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RemindersRoute = RemindersRouteImport.update({
-  id: '/reminders',
-  path: '/reminders',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReferralsRoute = ReferralsRouteImport.update({
-  id: '/referrals',
-  path: '/referrals',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProRoute = ProRouteImport.update({
-  id: '/pro',
-  path: '/pro',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PreserveRoute = PreserveRouteImport.update({
-  id: '/preserve',
-  path: '/preserve',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PremiumRecommendationsRoute = PremiumRecommendationsRouteImport.update({
-  id: '/premium-recommendations',
-  path: '/premium-recommendations',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MemoryKitchenRoute = MemoryKitchenRouteImport.update({
-  id: '/memory-kitchen',
-  path: '/memory-kitchen',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MealPlanRoute = MealPlanRouteImport.update({
-  id: '/meal-plan',
-  path: '/meal-plan',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LifeModeRoute = LifeModeRouteImport.update({
-  id: '/life-mode',
-  path: '/life-mode',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LearnRoute = LearnRouteImport.update({
-  id: '/learn',
-  path: '/learn',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KitchenToolsRoute = KitchenToolsRouteImport.update({
-  id: '/kitchen-tools',
-  path: '/kitchen-tools',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KitchenMagicRoute = KitchenMagicRouteImport.update({
-  id: '/kitchen-magic',
-  path: '/kitchen-magic',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KitchenBasicsRoute = KitchenBasicsRouteImport.update({
-  id: '/kitchen-basics',
-  path: '/kitchen-basics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KidsRoute = KidsRouteImport.update({
-  id: '/kids',
-  path: '/kids',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HealthCompanionRoute = HealthCompanionRouteImport.update({
-  id: '/health-companion',
-  path: '/health-companion',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HealthRoute = HealthRouteImport.update({
-  id: '/health',
-  path: '/health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GrowthRoute = GrowthRouteImport.update({
-  id: '/growth',
-  path: '/growth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GroceryPlusRoute = GroceryPlusRouteImport.update({
-  id: '/grocery-plus',
-  path: '/grocery-plus',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GoingBadRoute = GoingBadRouteImport.update({
-  id: '/going-bad',
-  path: '/going-bad',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FunModeRoute = FunModeRouteImport.update({
-  id: '/fun-mode',
-  path: '/fun-mode',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FoodPreferencesRoute = FoodPreferencesRouteImport.update({
-  id: '/food-preferences',
-  path: '/food-preferences',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeaturesRoute = FeaturesRouteImport.update({
-  id: '/features',
-  path: '/features',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FastingRoute = FastingRouteImport.update({
-  id: '/fasting',
-  path: '/fasting',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FamilyLegacyRoute = FamilyLegacyRouteImport.update({
-  id: '/family-legacy',
-  path: '/family-legacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DrinksRoute = DrinksRouteImport.update({
-  id: '/drinks',
-  path: '/drinks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DeleteAccountRoute = DeleteAccountRouteImport.update({
-  id: '/delete-account',
-  path: '/delete-account',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DayOfMealsRoute = DayOfMealsRouteImport.update({
-  id: '/day-of-meals',
-  path: '/day-of-meals',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DailyCoachRoute = DailyCoachRouteImport.update({
-  id: '/daily-coach',
-  path: '/daily-coach',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CupboardRoute = CupboardRouteImport.update({
-  id: '/cupboard',
-  path: '/cupboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CommunityRoute = CommunityRouteImport.update({
-  id: '/community',
-  path: '/community',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChefRescueRoute = ChefRescueRouteImport.update({
-  id: '/chef-rescue',
-  path: '/chef-rescue',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChefCompanionRoute = ChefCompanionRouteImport.update({
-  id: '/chef-companion',
-  path: '/chef-companion',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BodybuilderRoute = BodybuilderRouteImport.update({
-  id: '/bodybuilder',
-  path: '/bodybuilder',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BeforeYouShopRoute = BeforeYouShopRouteImport.update({
-  id: '/before-you-shop',
-  path: '/before-you-shop',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AroundTheWorldRoute = AroundTheWorldRouteImport.update({
-  id: '/around-the-world',
-  path: '/around-the-world',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AccountRoute = AccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AcademyRoute = AcademyRouteImport.update({
-  id: '/academy',
-  path: '/academy',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutChefRoute = AboutChefRouteImport.update({
@@ -372,9 +139,434 @@ const AboutChefRoute = AboutChefRouteImport.update({
   path: '/about-chef',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AcademyRoute = AcademyRouteImport.update({
+  id: '/academy',
+  path: '/academy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AroundTheWorldRoute = AroundTheWorldRouteImport.update({
+  id: '/around-the-world',
+  path: '/around-the-world',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BeforeYouShopRoute = BeforeYouShopRouteImport.update({
+  id: '/before-you-shop',
+  path: '/before-you-shop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BodybuilderRoute = BodybuilderRouteImport.update({
+  id: '/bodybuilder',
+  path: '/bodybuilder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BudgetPlanRoute = BudgetPlanRouteImport.update({
+  id: '/budget-plan',
+  path: '/budget-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BulkShoppingRoute = BulkShoppingRouteImport.update({
+  id: '/bulk-shopping',
+  path: '/bulk-shopping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChefCompanionRoute = ChefCompanionRouteImport.update({
+  id: '/chef-companion',
+  path: '/chef-companion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChefRescueRoute = ChefRescueRouteImport.update({
+  id: '/chef-rescue',
+  path: '/chef-rescue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookWithChefRoute = CookWithChefRouteImport.update({
+  id: '/cook-with-chef',
+  path: '/cook-with-chef',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CupboardRoute = CupboardRouteImport.update({
+  id: '/cupboard',
+  path: '/cupboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DailyCoachRoute = DailyCoachRouteImport.update({
+  id: '/daily-coach',
+  path: '/daily-coach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DayOfMealsRoute = DayOfMealsRouteImport.update({
+  id: '/day-of-meals',
+  path: '/day-of-meals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeleteAccountRoute = DeleteAccountRouteImport.update({
+  id: '/delete-account',
+  path: '/delete-account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DrinksRoute = DrinksRouteImport.update({
+  id: '/drinks',
+  path: '/drinks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpiryRoute = ExpiryRouteImport.update({
+  id: '/expiry',
+  path: '/expiry',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FamilyLegacyRoute = FamilyLegacyRouteImport.update({
+  id: '/family-legacy',
+  path: '/family-legacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FastingRoute = FastingRouteImport.update({
+  id: '/fasting',
+  path: '/fasting',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeaturesRoute = FeaturesRouteImport.update({
+  id: '/features',
+  path: '/features',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FoodPreferencesRoute = FoodPreferencesRouteImport.update({
+  id: '/food-preferences',
+  path: '/food-preferences',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FridgeScanRoute = FridgeScanRouteImport.update({
+  id: '/fridge-scan',
+  path: '/fridge-scan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FunModeRoute = FunModeRouteImport.update({
+  id: '/fun-mode',
+  path: '/fun-mode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GerdRoute = GerdRouteImport.update({
+  id: '/gerd',
+  path: '/gerd',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GoingBadRoute = GoingBadRouteImport.update({
+  id: '/going-bad',
+  path: '/going-bad',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GroceryListRoute = GroceryListRouteImport.update({
+  id: '/grocery-list',
+  path: '/grocery-list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GroceryPlusRoute = GroceryPlusRouteImport.update({
+  id: '/grocery-plus',
+  path: '/grocery-plus',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GrowthRoute = GrowthRouteImport.update({
+  id: '/growth',
+  path: '/growth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthCompanionRoute = HealthCompanionRouteImport.update({
+  id: '/health-companion',
+  path: '/health-companion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KidsRoute = KidsRouteImport.update({
+  id: '/kids',
+  path: '/kids',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KitchenBasicsRoute = KitchenBasicsRouteImport.update({
+  id: '/kitchen-basics',
+  path: '/kitchen-basics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KitchenGuideRoute = KitchenGuideRouteImport.update({
+  id: '/kitchen-guide',
+  path: '/kitchen-guide',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KitchenMagicRoute = KitchenMagicRouteImport.update({
+  id: '/kitchen-magic',
+  path: '/kitchen-magic',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KitchenToolsRoute = KitchenToolsRouteImport.update({
+  id: '/kitchen-tools',
+  path: '/kitchen-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LearnRoute = LearnRouteImport.update({
+  id: '/learn',
+  path: '/learn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeftoversRoute = LeftoversRouteImport.update({
+  id: '/leftovers',
+  path: '/leftovers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeftoversBuilderRoute = LeftoversBuilderRouteImport.update({
+  id: '/leftovers-builder',
+  path: '/leftovers-builder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LifeModeRoute = LifeModeRouteImport.update({
+  id: '/life-mode',
+  path: '/life-mode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MealCostsRoute = MealCostsRouteImport.update({
+  id: '/meal-costs',
+  path: '/meal-costs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MealPlanRoute = MealPlanRouteImport.update({
+  id: '/meal-plan',
+  path: '/meal-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemoryKitchenRoute = MemoryKitchenRouteImport.update({
+  id: '/memory-kitchen',
+  path: '/memory-kitchen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MobileQaRoute = MobileQaRouteImport.update({
+  id: '/mobile-qa',
+  path: '/mobile-qa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NearbyStoresRoute = NearbyStoresRouteImport.update({
+  id: '/nearby-stores',
+  path: '/nearby-stores',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PremiumRecommendationsRoute = PremiumRecommendationsRouteImport.update({
+  id: '/premium-recommendations',
+  path: '/premium-recommendations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreserveRoute = PreserveRouteImport.update({
+  id: '/preserve',
+  path: '/preserve',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProRoute = ProRouteImport.update({
+  id: '/pro',
+  path: '/pro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecipeCardRoute = RecipeCardRouteImport.update({
+  id: '/recipe-card',
+  path: '/recipe-card',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecipesRoute = RecipesRouteImport.update({
+  id: '/recipes',
+  path: '/recipes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReferralsRoute = ReferralsRouteImport.update({
+  id: '/referrals',
+  path: '/referrals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RemindersRoute = RemindersRouteImport.update({
+  id: '/reminders',
+  path: '/reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RescueRoute = RescueRouteImport.update({
+  id: '/rescue',
+  path: '/rescue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SavedRoute = SavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SavingsRoute = SavingsRouteImport.update({
+  id: '/savings',
+  path: '/savings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SavingsHubRoute = SavingsHubRouteImport.update({
+  id: '/savings-hub',
+  path: '/savings-hub',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScanRoute = ScanRouteImport.update({
+  id: '/scan',
+  path: '/scan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScanHistoryRoute = ScanHistoryRouteImport.update({
+  id: '/scan-history',
+  path: '/scan-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SeniorsRoute = SeniorsRouteImport.update({
+  id: '/seniors',
+  path: '/seniors',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShoppingAssistantRoute = ShoppingAssistantRouteImport.update({
+  id: '/shopping-assistant',
+  path: '/shopping-assistant',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShoppingListRoute = ShoppingListRouteImport.update({
+  id: '/shopping-list',
+  path: '/shopping-list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShoppingPlanRoute = ShoppingPlanRouteImport.update({
+  id: '/shopping-plan',
+  path: '/shopping-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShoppingTripRoute = ShoppingTripRouteImport.update({
+  id: '/shopping-trip',
+  path: '/shopping-trip',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SmartInsightsRoute = SmartInsightsRouteImport.update({
+  id: '/smart-insights',
+  path: '/smart-insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SmartKitchenRoute = SmartKitchenRouteImport.update({
+  id: '/smart-kitchen',
+  path: '/smart-kitchen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SocialHubRoute = SocialHubRouteImport.update({
+  id: '/social-hub',
+  path: '/social-hub',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StoreHelpRoute = StoreHelpRouteImport.update({
+  id: '/store-help',
+  path: '/store-help',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StoreModeRoute = StoreModeRouteImport.update({
+  id: '/store-mode',
+  path: '/store-mode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StoreScanRoute = StoreScanRouteImport.update({
+  id: '/store-scan',
+  path: '/store-scan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StretchMyGroceriesRoute = StretchMyGroceriesRouteImport.update({
+  id: '/stretch-my-groceries',
+  path: '/stretch-my-groceries',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StyleIdeasRoute = StyleIdeasRouteImport.update({
+  id: '/style-ideas',
+  path: '/style-ideas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionTermsRoute = SubscriptionTermsRouteImport.update({
+  id: '/subscription-terms',
+  path: '/subscription-terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubstitutionsRoute = SubstitutionsRouteImport.update({
+  id: '/substitutions',
+  path: '/substitutions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SyncStatusRoute = SyncStatusRouteImport.update({
+  id: '/sync-status',
+  path: '/sync-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestChecklistRoute = TestChecklistRouteImport.update({
+  id: '/test-checklist',
+  path: '/test-checklist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TypeIngredientsRoute = TypeIngredientsRouteImport.update({
+  id: '/type-ingredients',
+  path: '/type-ingredients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UseItSoonRoute = UseItSoonRouteImport.update({
+  id: '/use-it-soon',
+  path: '/use-it-soon',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VoiceProfilesRoute = VoiceProfilesRouteImport.update({
+  id: '/voice-profiles',
+  path: '/voice-profiles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AcademyIndexRoute = AcademyIndexRouteImport.update({
@@ -382,56 +574,95 @@ const AcademyIndexRoute = AcademyIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AcademyRoute,
 } as any)
-const CheckoutReturnRoute = CheckoutReturnRouteImport.update({
-  id: '/checkout/return',
-  path: '/checkout/return',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminBuildSecretsRoute = AdminBuildSecretsRouteImport.update({
-  id: '/admin/build-secrets',
-  path: '/admin/build-secrets',
-  getParentRoute: () => rootRouteImport,
+const AcademySectionRoute = AcademySectionRouteImport.update({
+  id: '/$section',
+  path: '/$section',
+  getParentRoute: () => AcademyRoute,
 } as any)
 const AcademyAskRoute = AcademyAskRouteImport.update({
   id: '/ask',
   path: '/ask',
   getParentRoute: () => AcademyRoute,
 } as any)
-const AcademySectionRoute = AcademySectionRouteImport.update({
-  id: '/$section',
-  path: '/$section',
-  getParentRoute: () => AcademyRoute,
-} as any)
-const ApiPublicTfDispatchRoute = ApiPublicTfDispatchRouteImport.update({
-  id: '/api/public/tf-dispatch',
-  path: '/api/public/tf-dispatch',
+const AdminBuildSecretsRoute = AdminBuildSecretsRouteImport.update({
+  id: '/admin/build-secrets',
+  path: '/admin/build-secrets',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminTriggerBuildRoute = ApiAdminTriggerBuildRouteImport.update({
-  id: '/api/admin/trigger-build',
-  path: '/api/admin/trigger-build',
+const AdminIosSecretsCheckRoute = AdminIosSecretsCheckRouteImport.update({
+  id: '/admin/ios-secrets-check',
+  path: '/admin/ios-secrets-check',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminPatPermissionsCheckRoute =
-  ApiAdminPatPermissionsCheckRouteImport.update({
-    id: '/api/admin/pat-permissions-check',
-    path: '/api/admin/pat-permissions-check',
+const AdminVoiceHealthRoute = AdminVoiceHealthRouteImport.update({
+  id: '/admin/voice-health',
+  path: '/admin/voice-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutReturnRoute = CheckoutReturnRouteImport.update({
+  id: '/checkout/return',
+  path: '/checkout/return',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookingQuestionsIndexRoute = CookingQuestionsIndexRouteImport.update({
+  id: '/cooking-questions/',
+  path: '/cooking-questions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookingQuestionsQuestionRoute =
+  CookingQuestionsQuestionRouteImport.update({
+    id: '/cooking-questions/$question',
+    path: '/cooking-questions/$question',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiAdminBuildStatusRoute = ApiAdminBuildStatusRouteImport.update({
-  id: '/api/admin/build-status',
-  path: '/api/admin/build-status',
+const CuisinesIndexRoute = CuisinesIndexRouteImport.update({
+  id: '/cuisines/',
+  path: '/cuisines/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminBuildSecretsStatusRoute =
-  ApiAdminBuildSecretsStatusRouteImport.update({
-    id: '/api/admin/build-secrets-status',
-    path: '/api/admin/build-secrets-status',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAdminBuildPreflightRoute = ApiAdminBuildPreflightRouteImport.update({
-  id: '/api/admin/build-preflight',
-  path: '/api/admin/build-preflight',
+const CuisinesCuisineRoute = CuisinesCuisineRouteImport.update({
+  id: '/cuisines/$cuisine',
+  path: '/cuisines/$cuisine',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DietsIndexRoute = DietsIndexRouteImport.update({
+  id: '/diets/',
+  path: '/diets/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DietsDietRoute = DietsDietRouteImport.update({
+  id: '/diets/$diet',
+  path: '/diets/$diet',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HowToMakeIndexRoute = HowToMakeIndexRouteImport.update({
+  id: '/how-to-make/',
+  path: '/how-to-make/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HowToMakeDishRoute = HowToMakeDishRouteImport.update({
+  id: '/how-to-make/$dish',
+  path: '/how-to-make/$dish',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IngredientsIndexRoute = IngredientsIndexRouteImport.update({
+  id: '/ingredients/',
+  path: '/ingredients/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IngredientsIngredientRoute = IngredientsIngredientRouteImport.update({
+  id: '/ingredients/$ingredient',
+  path: '/ingredients/$ingredient',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeftoverIdeasIndexRoute = LeftoverIdeasIndexRouteImport.update({
+  id: '/leftover-ideas/',
+  path: '/leftover-ideas/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeftoverIdeasLeftoverRoute = LeftoverIdeasLeftoverRouteImport.update({
+  id: '/leftover-ideas/$leftover',
+  path: '/leftover-ideas/$leftover',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminBuildConfigCheckRoute =
@@ -440,10 +671,65 @@ const ApiAdminBuildConfigCheckRoute =
     path: '/api/admin/build-config-check',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminBuildPreflightRoute = ApiAdminBuildPreflightRouteImport.update({
+  id: '/api/admin/build-preflight',
+  path: '/api/admin/build-preflight',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminBuildSecretsStatusRoute =
+  ApiAdminBuildSecretsStatusRouteImport.update({
+    id: '/api/admin/build-secrets-status',
+    path: '/api/admin/build-secrets-status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminBuildStatusRoute = ApiAdminBuildStatusRouteImport.update({
+  id: '/api/admin/build-status',
+  path: '/api/admin/build-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminPatPermissionsCheckRoute =
+  ApiAdminPatPermissionsCheckRouteImport.update({
+    id: '/api/admin/pat-permissions-check',
+    path: '/api/admin/pat-permissions-check',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminTestflightDryCheckRoute =
+  ApiAdminTestflightDryCheckRouteImport.update({
+    id: '/api/admin/testflight-dry-check',
+    path: '/api/admin/testflight-dry-check',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminTriggerBuildRoute = ApiAdminTriggerBuildRouteImport.update({
+  id: '/api/admin/trigger-build',
+  path: '/api/admin/trigger-build',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicOgRoute = ApiPublicOgRouteImport.update({
+  id: '/api/public/og',
+  path: '/api/public/og',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicTfDispatchRoute = ApiPublicTfDispatchRouteImport.update({
+  id: '/api/public/tf-dispatch',
+  path: '/api/public/tf-dispatch',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicEmailConfirmationRemindersRoute =
+  ApiPublicEmailConfirmationRemindersRouteImport.update({
+    id: '/api/public/email/confirmation-reminders',
+    path: '/api/public/email/confirmation-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
     path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -456,70 +742,117 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/before-you-shop': typeof BeforeYouShopRoute
   '/bodybuilder': typeof BodybuilderRoute
+  '/budget-plan': typeof BudgetPlanRoute
+  '/bulk-shopping': typeof BulkShoppingRoute
   '/chef-companion': typeof ChefCompanionRoute
   '/chef-rescue': typeof ChefRescueRoute
   '/community': typeof CommunityRoute
+  '/cook-with-chef': typeof CookWithChefRoute
   '/cupboard': typeof CupboardRoute
   '/daily-coach': typeof DailyCoachRoute
   '/day-of-meals': typeof DayOfMealsRoute
   '/delete-account': typeof DeleteAccountRoute
   '/drinks': typeof DrinksRoute
+  '/expiry': typeof ExpiryRoute
   '/family-legacy': typeof FamilyLegacyRoute
   '/fasting': typeof FastingRoute
   '/features': typeof FeaturesRoute
   '/food-preferences': typeof FoodPreferencesRoute
+  '/fridge-scan': typeof FridgeScanRoute
   '/fun-mode': typeof FunModeRoute
+  '/gerd': typeof GerdRoute
   '/going-bad': typeof GoingBadRoute
+  '/grocery-list': typeof GroceryListRoute
   '/grocery-plus': typeof GroceryPlusRoute
   '/growth': typeof GrowthRoute
   '/health': typeof HealthRoute
   '/health-companion': typeof HealthCompanionRoute
   '/kids': typeof KidsRoute
   '/kitchen-basics': typeof KitchenBasicsRoute
+  '/kitchen-guide': typeof KitchenGuideRoute
   '/kitchen-magic': typeof KitchenMagicRoute
   '/kitchen-tools': typeof KitchenToolsRoute
   '/learn': typeof LearnRoute
+  '/leftovers': typeof LeftoversRoute
+  '/leftovers-builder': typeof LeftoversBuilderRoute
   '/life-mode': typeof LifeModeRoute
+  '/meal-costs': typeof MealCostsRoute
   '/meal-plan': typeof MealPlanRoute
   '/memory-kitchen': typeof MemoryKitchenRoute
+  '/mobile-qa': typeof MobileQaRoute
+  '/nearby-stores': typeof NearbyStoresRoute
   '/onboarding': typeof OnboardingRoute
   '/premium-recommendations': typeof PremiumRecommendationsRoute
   '/preserve': typeof PreserveRoute
   '/privacy': typeof PrivacyRoute
   '/pro': typeof ProRoute
+  '/recipe-card': typeof RecipeCardRoute
+  '/recipes': typeof RecipesRoute
   '/referrals': typeof ReferralsRoute
   '/reminders': typeof RemindersRoute
   '/rescue': typeof RescueRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/saved': typeof SavedRoute
   '/savings': typeof SavingsRoute
   '/savings-hub': typeof SavingsHubRoute
   '/scan': typeof ScanRoute
+  '/scan-history': typeof ScanHistoryRoute
+  '/search': typeof SearchRoute
   '/seniors': typeof SeniorsRoute
+  '/settings': typeof SettingsRoute
   '/shopping-assistant': typeof ShoppingAssistantRoute
+  '/shopping-list': typeof ShoppingListRoute
+  '/shopping-plan': typeof ShoppingPlanRoute
+  '/shopping-trip': typeof ShoppingTripRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/smart-insights': typeof SmartInsightsRoute
   '/smart-kitchen': typeof SmartKitchenRoute
   '/social-hub': typeof SocialHubRoute
+  '/store-help': typeof StoreHelpRoute
+  '/store-mode': typeof StoreModeRoute
+  '/store-scan': typeof StoreScanRoute
+  '/stretch-my-groceries': typeof StretchMyGroceriesRoute
+  '/style-ideas': typeof StyleIdeasRoute
   '/subscription-terms': typeof SubscriptionTermsRoute
+  '/substitutions': typeof SubstitutionsRoute
   '/support': typeof SupportRoute
   '/sync-status': typeof SyncStatusRoute
   '/terms': typeof TermsRoute
   '/test-checklist': typeof TestChecklistRoute
   '/type-ingredients': typeof TypeIngredientsRoute
   '/use-it-soon': typeof UseItSoonRoute
+  '/voice-profiles': typeof VoiceProfilesRoute
   '/academy/$section': typeof AcademySectionRoute
   '/academy/ask': typeof AcademyAskRoute
   '/admin/build-secrets': typeof AdminBuildSecretsRoute
+  '/admin/ios-secrets-check': typeof AdminIosSecretsCheckRoute
+  '/admin/voice-health': typeof AdminVoiceHealthRoute
   '/checkout/return': typeof CheckoutReturnRoute
+  '/cooking-questions/$question': typeof CookingQuestionsQuestionRoute
+  '/cuisines/$cuisine': typeof CuisinesCuisineRoute
+  '/diets/$diet': typeof DietsDietRoute
+  '/how-to-make/$dish': typeof HowToMakeDishRoute
+  '/ingredients/$ingredient': typeof IngredientsIngredientRoute
+  '/leftover-ideas/$leftover': typeof LeftoverIdeasLeftoverRoute
   '/academy/': typeof AcademyIndexRoute
+  '/cooking-questions/': typeof CookingQuestionsIndexRoute
+  '/cuisines/': typeof CuisinesIndexRoute
+  '/diets/': typeof DietsIndexRoute
+  '/how-to-make/': typeof HowToMakeIndexRoute
+  '/ingredients/': typeof IngredientsIndexRoute
+  '/leftover-ideas/': typeof LeftoverIdeasIndexRoute
   '/api/admin/build-config-check': typeof ApiAdminBuildConfigCheckRoute
   '/api/admin/build-preflight': typeof ApiAdminBuildPreflightRoute
   '/api/admin/build-secrets-status': typeof ApiAdminBuildSecretsStatusRoute
   '/api/admin/build-status': typeof ApiAdminBuildStatusRoute
   '/api/admin/pat-permissions-check': typeof ApiAdminPatPermissionsCheckRoute
+  '/api/admin/testflight-dry-check': typeof ApiAdminTestflightDryCheckRoute
   '/api/admin/trigger-build': typeof ApiAdminTriggerBuildRoute
+  '/api/public/og': typeof ApiPublicOgRoute
   '/api/public/tf-dispatch': typeof ApiPublicTfDispatchRoute
+  '/api/public/email/confirmation-reminders': typeof ApiPublicEmailConfirmationRemindersRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -529,70 +862,117 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/before-you-shop': typeof BeforeYouShopRoute
   '/bodybuilder': typeof BodybuilderRoute
+  '/budget-plan': typeof BudgetPlanRoute
+  '/bulk-shopping': typeof BulkShoppingRoute
   '/chef-companion': typeof ChefCompanionRoute
   '/chef-rescue': typeof ChefRescueRoute
   '/community': typeof CommunityRoute
+  '/cook-with-chef': typeof CookWithChefRoute
   '/cupboard': typeof CupboardRoute
   '/daily-coach': typeof DailyCoachRoute
   '/day-of-meals': typeof DayOfMealsRoute
   '/delete-account': typeof DeleteAccountRoute
   '/drinks': typeof DrinksRoute
+  '/expiry': typeof ExpiryRoute
   '/family-legacy': typeof FamilyLegacyRoute
   '/fasting': typeof FastingRoute
   '/features': typeof FeaturesRoute
   '/food-preferences': typeof FoodPreferencesRoute
+  '/fridge-scan': typeof FridgeScanRoute
   '/fun-mode': typeof FunModeRoute
+  '/gerd': typeof GerdRoute
   '/going-bad': typeof GoingBadRoute
+  '/grocery-list': typeof GroceryListRoute
   '/grocery-plus': typeof GroceryPlusRoute
   '/growth': typeof GrowthRoute
   '/health': typeof HealthRoute
   '/health-companion': typeof HealthCompanionRoute
   '/kids': typeof KidsRoute
   '/kitchen-basics': typeof KitchenBasicsRoute
+  '/kitchen-guide': typeof KitchenGuideRoute
   '/kitchen-magic': typeof KitchenMagicRoute
   '/kitchen-tools': typeof KitchenToolsRoute
   '/learn': typeof LearnRoute
+  '/leftovers': typeof LeftoversRoute
+  '/leftovers-builder': typeof LeftoversBuilderRoute
   '/life-mode': typeof LifeModeRoute
+  '/meal-costs': typeof MealCostsRoute
   '/meal-plan': typeof MealPlanRoute
   '/memory-kitchen': typeof MemoryKitchenRoute
+  '/mobile-qa': typeof MobileQaRoute
+  '/nearby-stores': typeof NearbyStoresRoute
   '/onboarding': typeof OnboardingRoute
   '/premium-recommendations': typeof PremiumRecommendationsRoute
   '/preserve': typeof PreserveRoute
   '/privacy': typeof PrivacyRoute
   '/pro': typeof ProRoute
+  '/recipe-card': typeof RecipeCardRoute
+  '/recipes': typeof RecipesRoute
   '/referrals': typeof ReferralsRoute
   '/reminders': typeof RemindersRoute
   '/rescue': typeof RescueRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/saved': typeof SavedRoute
   '/savings': typeof SavingsRoute
   '/savings-hub': typeof SavingsHubRoute
   '/scan': typeof ScanRoute
+  '/scan-history': typeof ScanHistoryRoute
+  '/search': typeof SearchRoute
   '/seniors': typeof SeniorsRoute
+  '/settings': typeof SettingsRoute
   '/shopping-assistant': typeof ShoppingAssistantRoute
+  '/shopping-list': typeof ShoppingListRoute
+  '/shopping-plan': typeof ShoppingPlanRoute
+  '/shopping-trip': typeof ShoppingTripRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/smart-insights': typeof SmartInsightsRoute
   '/smart-kitchen': typeof SmartKitchenRoute
   '/social-hub': typeof SocialHubRoute
+  '/store-help': typeof StoreHelpRoute
+  '/store-mode': typeof StoreModeRoute
+  '/store-scan': typeof StoreScanRoute
+  '/stretch-my-groceries': typeof StretchMyGroceriesRoute
+  '/style-ideas': typeof StyleIdeasRoute
   '/subscription-terms': typeof SubscriptionTermsRoute
+  '/substitutions': typeof SubstitutionsRoute
   '/support': typeof SupportRoute
   '/sync-status': typeof SyncStatusRoute
   '/terms': typeof TermsRoute
   '/test-checklist': typeof TestChecklistRoute
   '/type-ingredients': typeof TypeIngredientsRoute
   '/use-it-soon': typeof UseItSoonRoute
+  '/voice-profiles': typeof VoiceProfilesRoute
   '/academy/$section': typeof AcademySectionRoute
   '/academy/ask': typeof AcademyAskRoute
   '/admin/build-secrets': typeof AdminBuildSecretsRoute
+  '/admin/ios-secrets-check': typeof AdminIosSecretsCheckRoute
+  '/admin/voice-health': typeof AdminVoiceHealthRoute
   '/checkout/return': typeof CheckoutReturnRoute
+  '/cooking-questions/$question': typeof CookingQuestionsQuestionRoute
+  '/cuisines/$cuisine': typeof CuisinesCuisineRoute
+  '/diets/$diet': typeof DietsDietRoute
+  '/how-to-make/$dish': typeof HowToMakeDishRoute
+  '/ingredients/$ingredient': typeof IngredientsIngredientRoute
+  '/leftover-ideas/$leftover': typeof LeftoverIdeasLeftoverRoute
   '/academy': typeof AcademyIndexRoute
+  '/cooking-questions': typeof CookingQuestionsIndexRoute
+  '/cuisines': typeof CuisinesIndexRoute
+  '/diets': typeof DietsIndexRoute
+  '/how-to-make': typeof HowToMakeIndexRoute
+  '/ingredients': typeof IngredientsIndexRoute
+  '/leftover-ideas': typeof LeftoverIdeasIndexRoute
   '/api/admin/build-config-check': typeof ApiAdminBuildConfigCheckRoute
   '/api/admin/build-preflight': typeof ApiAdminBuildPreflightRoute
   '/api/admin/build-secrets-status': typeof ApiAdminBuildSecretsStatusRoute
   '/api/admin/build-status': typeof ApiAdminBuildStatusRoute
   '/api/admin/pat-permissions-check': typeof ApiAdminPatPermissionsCheckRoute
+  '/api/admin/testflight-dry-check': typeof ApiAdminTestflightDryCheckRoute
   '/api/admin/trigger-build': typeof ApiAdminTriggerBuildRoute
+  '/api/public/og': typeof ApiPublicOgRoute
   '/api/public/tf-dispatch': typeof ApiPublicTfDispatchRoute
+  '/api/public/email/confirmation-reminders': typeof ApiPublicEmailConfirmationRemindersRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -604,70 +984,117 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/before-you-shop': typeof BeforeYouShopRoute
   '/bodybuilder': typeof BodybuilderRoute
+  '/budget-plan': typeof BudgetPlanRoute
+  '/bulk-shopping': typeof BulkShoppingRoute
   '/chef-companion': typeof ChefCompanionRoute
   '/chef-rescue': typeof ChefRescueRoute
   '/community': typeof CommunityRoute
+  '/cook-with-chef': typeof CookWithChefRoute
   '/cupboard': typeof CupboardRoute
   '/daily-coach': typeof DailyCoachRoute
   '/day-of-meals': typeof DayOfMealsRoute
   '/delete-account': typeof DeleteAccountRoute
   '/drinks': typeof DrinksRoute
+  '/expiry': typeof ExpiryRoute
   '/family-legacy': typeof FamilyLegacyRoute
   '/fasting': typeof FastingRoute
   '/features': typeof FeaturesRoute
   '/food-preferences': typeof FoodPreferencesRoute
+  '/fridge-scan': typeof FridgeScanRoute
   '/fun-mode': typeof FunModeRoute
+  '/gerd': typeof GerdRoute
   '/going-bad': typeof GoingBadRoute
+  '/grocery-list': typeof GroceryListRoute
   '/grocery-plus': typeof GroceryPlusRoute
   '/growth': typeof GrowthRoute
   '/health': typeof HealthRoute
   '/health-companion': typeof HealthCompanionRoute
   '/kids': typeof KidsRoute
   '/kitchen-basics': typeof KitchenBasicsRoute
+  '/kitchen-guide': typeof KitchenGuideRoute
   '/kitchen-magic': typeof KitchenMagicRoute
   '/kitchen-tools': typeof KitchenToolsRoute
   '/learn': typeof LearnRoute
+  '/leftovers': typeof LeftoversRoute
+  '/leftovers-builder': typeof LeftoversBuilderRoute
   '/life-mode': typeof LifeModeRoute
+  '/meal-costs': typeof MealCostsRoute
   '/meal-plan': typeof MealPlanRoute
   '/memory-kitchen': typeof MemoryKitchenRoute
+  '/mobile-qa': typeof MobileQaRoute
+  '/nearby-stores': typeof NearbyStoresRoute
   '/onboarding': typeof OnboardingRoute
   '/premium-recommendations': typeof PremiumRecommendationsRoute
   '/preserve': typeof PreserveRoute
   '/privacy': typeof PrivacyRoute
   '/pro': typeof ProRoute
+  '/recipe-card': typeof RecipeCardRoute
+  '/recipes': typeof RecipesRoute
   '/referrals': typeof ReferralsRoute
   '/reminders': typeof RemindersRoute
   '/rescue': typeof RescueRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/saved': typeof SavedRoute
   '/savings': typeof SavingsRoute
   '/savings-hub': typeof SavingsHubRoute
   '/scan': typeof ScanRoute
+  '/scan-history': typeof ScanHistoryRoute
+  '/search': typeof SearchRoute
   '/seniors': typeof SeniorsRoute
+  '/settings': typeof SettingsRoute
   '/shopping-assistant': typeof ShoppingAssistantRoute
+  '/shopping-list': typeof ShoppingListRoute
+  '/shopping-plan': typeof ShoppingPlanRoute
+  '/shopping-trip': typeof ShoppingTripRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/smart-insights': typeof SmartInsightsRoute
   '/smart-kitchen': typeof SmartKitchenRoute
   '/social-hub': typeof SocialHubRoute
+  '/store-help': typeof StoreHelpRoute
+  '/store-mode': typeof StoreModeRoute
+  '/store-scan': typeof StoreScanRoute
+  '/stretch-my-groceries': typeof StretchMyGroceriesRoute
+  '/style-ideas': typeof StyleIdeasRoute
   '/subscription-terms': typeof SubscriptionTermsRoute
+  '/substitutions': typeof SubstitutionsRoute
   '/support': typeof SupportRoute
   '/sync-status': typeof SyncStatusRoute
   '/terms': typeof TermsRoute
   '/test-checklist': typeof TestChecklistRoute
   '/type-ingredients': typeof TypeIngredientsRoute
   '/use-it-soon': typeof UseItSoonRoute
+  '/voice-profiles': typeof VoiceProfilesRoute
   '/academy/$section': typeof AcademySectionRoute
   '/academy/ask': typeof AcademyAskRoute
   '/admin/build-secrets': typeof AdminBuildSecretsRoute
+  '/admin/ios-secrets-check': typeof AdminIosSecretsCheckRoute
+  '/admin/voice-health': typeof AdminVoiceHealthRoute
   '/checkout/return': typeof CheckoutReturnRoute
+  '/cooking-questions/$question': typeof CookingQuestionsQuestionRoute
+  '/cuisines/$cuisine': typeof CuisinesCuisineRoute
+  '/diets/$diet': typeof DietsDietRoute
+  '/how-to-make/$dish': typeof HowToMakeDishRoute
+  '/ingredients/$ingredient': typeof IngredientsIngredientRoute
+  '/leftover-ideas/$leftover': typeof LeftoverIdeasLeftoverRoute
   '/academy/': typeof AcademyIndexRoute
+  '/cooking-questions/': typeof CookingQuestionsIndexRoute
+  '/cuisines/': typeof CuisinesIndexRoute
+  '/diets/': typeof DietsIndexRoute
+  '/how-to-make/': typeof HowToMakeIndexRoute
+  '/ingredients/': typeof IngredientsIndexRoute
+  '/leftover-ideas/': typeof LeftoverIdeasIndexRoute
   '/api/admin/build-config-check': typeof ApiAdminBuildConfigCheckRoute
   '/api/admin/build-preflight': typeof ApiAdminBuildPreflightRoute
   '/api/admin/build-secrets-status': typeof ApiAdminBuildSecretsStatusRoute
   '/api/admin/build-status': typeof ApiAdminBuildStatusRoute
   '/api/admin/pat-permissions-check': typeof ApiAdminPatPermissionsCheckRoute
+  '/api/admin/testflight-dry-check': typeof ApiAdminTestflightDryCheckRoute
   '/api/admin/trigger-build': typeof ApiAdminTriggerBuildRoute
+  '/api/public/og': typeof ApiPublicOgRoute
   '/api/public/tf-dispatch': typeof ApiPublicTfDispatchRoute
+  '/api/public/email/confirmation-reminders': typeof ApiPublicEmailConfirmationRemindersRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -680,70 +1107,117 @@ export interface FileRouteTypes {
     | '/auth'
     | '/before-you-shop'
     | '/bodybuilder'
+    | '/budget-plan'
+    | '/bulk-shopping'
     | '/chef-companion'
     | '/chef-rescue'
     | '/community'
+    | '/cook-with-chef'
     | '/cupboard'
     | '/daily-coach'
     | '/day-of-meals'
     | '/delete-account'
     | '/drinks'
+    | '/expiry'
     | '/family-legacy'
     | '/fasting'
     | '/features'
     | '/food-preferences'
+    | '/fridge-scan'
     | '/fun-mode'
+    | '/gerd'
     | '/going-bad'
+    | '/grocery-list'
     | '/grocery-plus'
     | '/growth'
     | '/health'
     | '/health-companion'
     | '/kids'
     | '/kitchen-basics'
+    | '/kitchen-guide'
     | '/kitchen-magic'
     | '/kitchen-tools'
     | '/learn'
+    | '/leftovers'
+    | '/leftovers-builder'
     | '/life-mode'
+    | '/meal-costs'
     | '/meal-plan'
     | '/memory-kitchen'
+    | '/mobile-qa'
+    | '/nearby-stores'
     | '/onboarding'
     | '/premium-recommendations'
     | '/preserve'
     | '/privacy'
     | '/pro'
+    | '/recipe-card'
+    | '/recipes'
     | '/referrals'
     | '/reminders'
     | '/rescue'
+    | '/reset-password'
     | '/saved'
     | '/savings'
     | '/savings-hub'
     | '/scan'
+    | '/scan-history'
+    | '/search'
     | '/seniors'
+    | '/settings'
     | '/shopping-assistant'
+    | '/shopping-list'
+    | '/shopping-plan'
+    | '/shopping-trip'
     | '/sitemap.xml'
     | '/smart-insights'
     | '/smart-kitchen'
     | '/social-hub'
+    | '/store-help'
+    | '/store-mode'
+    | '/store-scan'
+    | '/stretch-my-groceries'
+    | '/style-ideas'
     | '/subscription-terms'
+    | '/substitutions'
     | '/support'
     | '/sync-status'
     | '/terms'
     | '/test-checklist'
     | '/type-ingredients'
     | '/use-it-soon'
+    | '/voice-profiles'
     | '/academy/$section'
     | '/academy/ask'
     | '/admin/build-secrets'
+    | '/admin/ios-secrets-check'
+    | '/admin/voice-health'
     | '/checkout/return'
+    | '/cooking-questions/$question'
+    | '/cuisines/$cuisine'
+    | '/diets/$diet'
+    | '/how-to-make/$dish'
+    | '/ingredients/$ingredient'
+    | '/leftover-ideas/$leftover'
     | '/academy/'
+    | '/cooking-questions/'
+    | '/cuisines/'
+    | '/diets/'
+    | '/how-to-make/'
+    | '/ingredients/'
+    | '/leftover-ideas/'
     | '/api/admin/build-config-check'
     | '/api/admin/build-preflight'
     | '/api/admin/build-secrets-status'
     | '/api/admin/build-status'
     | '/api/admin/pat-permissions-check'
+    | '/api/admin/testflight-dry-check'
     | '/api/admin/trigger-build'
+    | '/api/public/og'
     | '/api/public/tf-dispatch'
+    | '/api/public/email/confirmation-reminders'
     | '/api/public/payments/webhook'
+    | '/lovable/email/transactional/preview'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -753,70 +1227,117 @@ export interface FileRouteTypes {
     | '/auth'
     | '/before-you-shop'
     | '/bodybuilder'
+    | '/budget-plan'
+    | '/bulk-shopping'
     | '/chef-companion'
     | '/chef-rescue'
     | '/community'
+    | '/cook-with-chef'
     | '/cupboard'
     | '/daily-coach'
     | '/day-of-meals'
     | '/delete-account'
     | '/drinks'
+    | '/expiry'
     | '/family-legacy'
     | '/fasting'
     | '/features'
     | '/food-preferences'
+    | '/fridge-scan'
     | '/fun-mode'
+    | '/gerd'
     | '/going-bad'
+    | '/grocery-list'
     | '/grocery-plus'
     | '/growth'
     | '/health'
     | '/health-companion'
     | '/kids'
     | '/kitchen-basics'
+    | '/kitchen-guide'
     | '/kitchen-magic'
     | '/kitchen-tools'
     | '/learn'
+    | '/leftovers'
+    | '/leftovers-builder'
     | '/life-mode'
+    | '/meal-costs'
     | '/meal-plan'
     | '/memory-kitchen'
+    | '/mobile-qa'
+    | '/nearby-stores'
     | '/onboarding'
     | '/premium-recommendations'
     | '/preserve'
     | '/privacy'
     | '/pro'
+    | '/recipe-card'
+    | '/recipes'
     | '/referrals'
     | '/reminders'
     | '/rescue'
+    | '/reset-password'
     | '/saved'
     | '/savings'
     | '/savings-hub'
     | '/scan'
+    | '/scan-history'
+    | '/search'
     | '/seniors'
+    | '/settings'
     | '/shopping-assistant'
+    | '/shopping-list'
+    | '/shopping-plan'
+    | '/shopping-trip'
     | '/sitemap.xml'
     | '/smart-insights'
     | '/smart-kitchen'
     | '/social-hub'
+    | '/store-help'
+    | '/store-mode'
+    | '/store-scan'
+    | '/stretch-my-groceries'
+    | '/style-ideas'
     | '/subscription-terms'
+    | '/substitutions'
     | '/support'
     | '/sync-status'
     | '/terms'
     | '/test-checklist'
     | '/type-ingredients'
     | '/use-it-soon'
+    | '/voice-profiles'
     | '/academy/$section'
     | '/academy/ask'
     | '/admin/build-secrets'
+    | '/admin/ios-secrets-check'
+    | '/admin/voice-health'
     | '/checkout/return'
+    | '/cooking-questions/$question'
+    | '/cuisines/$cuisine'
+    | '/diets/$diet'
+    | '/how-to-make/$dish'
+    | '/ingredients/$ingredient'
+    | '/leftover-ideas/$leftover'
     | '/academy'
+    | '/cooking-questions'
+    | '/cuisines'
+    | '/diets'
+    | '/how-to-make'
+    | '/ingredients'
+    | '/leftover-ideas'
     | '/api/admin/build-config-check'
     | '/api/admin/build-preflight'
     | '/api/admin/build-secrets-status'
     | '/api/admin/build-status'
     | '/api/admin/pat-permissions-check'
+    | '/api/admin/testflight-dry-check'
     | '/api/admin/trigger-build'
+    | '/api/public/og'
     | '/api/public/tf-dispatch'
+    | '/api/public/email/confirmation-reminders'
     | '/api/public/payments/webhook'
+    | '/lovable/email/transactional/preview'
   id:
     | '__root__'
     | '/'
@@ -827,70 +1348,117 @@ export interface FileRouteTypes {
     | '/auth'
     | '/before-you-shop'
     | '/bodybuilder'
+    | '/budget-plan'
+    | '/bulk-shopping'
     | '/chef-companion'
     | '/chef-rescue'
     | '/community'
+    | '/cook-with-chef'
     | '/cupboard'
     | '/daily-coach'
     | '/day-of-meals'
     | '/delete-account'
     | '/drinks'
+    | '/expiry'
     | '/family-legacy'
     | '/fasting'
     | '/features'
     | '/food-preferences'
+    | '/fridge-scan'
     | '/fun-mode'
+    | '/gerd'
     | '/going-bad'
+    | '/grocery-list'
     | '/grocery-plus'
     | '/growth'
     | '/health'
     | '/health-companion'
     | '/kids'
     | '/kitchen-basics'
+    | '/kitchen-guide'
     | '/kitchen-magic'
     | '/kitchen-tools'
     | '/learn'
+    | '/leftovers'
+    | '/leftovers-builder'
     | '/life-mode'
+    | '/meal-costs'
     | '/meal-plan'
     | '/memory-kitchen'
+    | '/mobile-qa'
+    | '/nearby-stores'
     | '/onboarding'
     | '/premium-recommendations'
     | '/preserve'
     | '/privacy'
     | '/pro'
+    | '/recipe-card'
+    | '/recipes'
     | '/referrals'
     | '/reminders'
     | '/rescue'
+    | '/reset-password'
     | '/saved'
     | '/savings'
     | '/savings-hub'
     | '/scan'
+    | '/scan-history'
+    | '/search'
     | '/seniors'
+    | '/settings'
     | '/shopping-assistant'
+    | '/shopping-list'
+    | '/shopping-plan'
+    | '/shopping-trip'
     | '/sitemap.xml'
     | '/smart-insights'
     | '/smart-kitchen'
     | '/social-hub'
+    | '/store-help'
+    | '/store-mode'
+    | '/store-scan'
+    | '/stretch-my-groceries'
+    | '/style-ideas'
     | '/subscription-terms'
+    | '/substitutions'
     | '/support'
     | '/sync-status'
     | '/terms'
     | '/test-checklist'
     | '/type-ingredients'
     | '/use-it-soon'
+    | '/voice-profiles'
     | '/academy/$section'
     | '/academy/ask'
     | '/admin/build-secrets'
+    | '/admin/ios-secrets-check'
+    | '/admin/voice-health'
     | '/checkout/return'
+    | '/cooking-questions/$question'
+    | '/cuisines/$cuisine'
+    | '/diets/$diet'
+    | '/how-to-make/$dish'
+    | '/ingredients/$ingredient'
+    | '/leftover-ideas/$leftover'
     | '/academy/'
+    | '/cooking-questions/'
+    | '/cuisines/'
+    | '/diets/'
+    | '/how-to-make/'
+    | '/ingredients/'
+    | '/leftover-ideas/'
     | '/api/admin/build-config-check'
     | '/api/admin/build-preflight'
     | '/api/admin/build-secrets-status'
     | '/api/admin/build-status'
     | '/api/admin/pat-permissions-check'
+    | '/api/admin/testflight-dry-check'
     | '/api/admin/trigger-build'
+    | '/api/public/og'
     | '/api/public/tf-dispatch'
+    | '/api/public/email/confirmation-reminders'
     | '/api/public/payments/webhook'
+    | '/lovable/email/transactional/preview'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -902,468 +1470,123 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BeforeYouShopRoute: typeof BeforeYouShopRoute
   BodybuilderRoute: typeof BodybuilderRoute
+  BudgetPlanRoute: typeof BudgetPlanRoute
+  BulkShoppingRoute: typeof BulkShoppingRoute
   ChefCompanionRoute: typeof ChefCompanionRoute
   ChefRescueRoute: typeof ChefRescueRoute
   CommunityRoute: typeof CommunityRoute
+  CookWithChefRoute: typeof CookWithChefRoute
   CupboardRoute: typeof CupboardRoute
   DailyCoachRoute: typeof DailyCoachRoute
   DayOfMealsRoute: typeof DayOfMealsRoute
   DeleteAccountRoute: typeof DeleteAccountRoute
   DrinksRoute: typeof DrinksRoute
+  ExpiryRoute: typeof ExpiryRoute
   FamilyLegacyRoute: typeof FamilyLegacyRoute
   FastingRoute: typeof FastingRoute
   FeaturesRoute: typeof FeaturesRoute
   FoodPreferencesRoute: typeof FoodPreferencesRoute
+  FridgeScanRoute: typeof FridgeScanRoute
   FunModeRoute: typeof FunModeRoute
+  GerdRoute: typeof GerdRoute
   GoingBadRoute: typeof GoingBadRoute
+  GroceryListRoute: typeof GroceryListRoute
   GroceryPlusRoute: typeof GroceryPlusRoute
   GrowthRoute: typeof GrowthRoute
   HealthRoute: typeof HealthRoute
   HealthCompanionRoute: typeof HealthCompanionRoute
   KidsRoute: typeof KidsRoute
   KitchenBasicsRoute: typeof KitchenBasicsRoute
+  KitchenGuideRoute: typeof KitchenGuideRoute
   KitchenMagicRoute: typeof KitchenMagicRoute
   KitchenToolsRoute: typeof KitchenToolsRoute
   LearnRoute: typeof LearnRoute
+  LeftoversRoute: typeof LeftoversRoute
+  LeftoversBuilderRoute: typeof LeftoversBuilderRoute
   LifeModeRoute: typeof LifeModeRoute
+  MealCostsRoute: typeof MealCostsRoute
   MealPlanRoute: typeof MealPlanRoute
   MemoryKitchenRoute: typeof MemoryKitchenRoute
+  MobileQaRoute: typeof MobileQaRoute
+  NearbyStoresRoute: typeof NearbyStoresRoute
   OnboardingRoute: typeof OnboardingRoute
   PremiumRecommendationsRoute: typeof PremiumRecommendationsRoute
   PreserveRoute: typeof PreserveRoute
   PrivacyRoute: typeof PrivacyRoute
   ProRoute: typeof ProRoute
+  RecipeCardRoute: typeof RecipeCardRoute
+  RecipesRoute: typeof RecipesRoute
   ReferralsRoute: typeof ReferralsRoute
   RemindersRoute: typeof RemindersRoute
   RescueRoute: typeof RescueRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SavedRoute: typeof SavedRoute
   SavingsRoute: typeof SavingsRoute
   SavingsHubRoute: typeof SavingsHubRoute
   ScanRoute: typeof ScanRoute
+  ScanHistoryRoute: typeof ScanHistoryRoute
+  SearchRoute: typeof SearchRoute
   SeniorsRoute: typeof SeniorsRoute
+  SettingsRoute: typeof SettingsRoute
   ShoppingAssistantRoute: typeof ShoppingAssistantRoute
+  ShoppingListRoute: typeof ShoppingListRoute
+  ShoppingPlanRoute: typeof ShoppingPlanRoute
+  ShoppingTripRoute: typeof ShoppingTripRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SmartInsightsRoute: typeof SmartInsightsRoute
   SmartKitchenRoute: typeof SmartKitchenRoute
   SocialHubRoute: typeof SocialHubRoute
+  StoreHelpRoute: typeof StoreHelpRoute
+  StoreModeRoute: typeof StoreModeRoute
+  StoreScanRoute: typeof StoreScanRoute
+  StretchMyGroceriesRoute: typeof StretchMyGroceriesRoute
+  StyleIdeasRoute: typeof StyleIdeasRoute
   SubscriptionTermsRoute: typeof SubscriptionTermsRoute
+  SubstitutionsRoute: typeof SubstitutionsRoute
   SupportRoute: typeof SupportRoute
   SyncStatusRoute: typeof SyncStatusRoute
   TermsRoute: typeof TermsRoute
   TestChecklistRoute: typeof TestChecklistRoute
   TypeIngredientsRoute: typeof TypeIngredientsRoute
   UseItSoonRoute: typeof UseItSoonRoute
+  VoiceProfilesRoute: typeof VoiceProfilesRoute
   AdminBuildSecretsRoute: typeof AdminBuildSecretsRoute
+  AdminIosSecretsCheckRoute: typeof AdminIosSecretsCheckRoute
+  AdminVoiceHealthRoute: typeof AdminVoiceHealthRoute
   CheckoutReturnRoute: typeof CheckoutReturnRoute
+  CookingQuestionsQuestionRoute: typeof CookingQuestionsQuestionRoute
+  CuisinesCuisineRoute: typeof CuisinesCuisineRoute
+  DietsDietRoute: typeof DietsDietRoute
+  HowToMakeDishRoute: typeof HowToMakeDishRoute
+  IngredientsIngredientRoute: typeof IngredientsIngredientRoute
+  LeftoverIdeasLeftoverRoute: typeof LeftoverIdeasLeftoverRoute
+  CookingQuestionsIndexRoute: typeof CookingQuestionsIndexRoute
+  CuisinesIndexRoute: typeof CuisinesIndexRoute
+  DietsIndexRoute: typeof DietsIndexRoute
+  HowToMakeIndexRoute: typeof HowToMakeIndexRoute
+  IngredientsIndexRoute: typeof IngredientsIndexRoute
+  LeftoverIdeasIndexRoute: typeof LeftoverIdeasIndexRoute
   ApiAdminBuildConfigCheckRoute: typeof ApiAdminBuildConfigCheckRoute
   ApiAdminBuildPreflightRoute: typeof ApiAdminBuildPreflightRoute
   ApiAdminBuildSecretsStatusRoute: typeof ApiAdminBuildSecretsStatusRoute
   ApiAdminBuildStatusRoute: typeof ApiAdminBuildStatusRoute
   ApiAdminPatPermissionsCheckRoute: typeof ApiAdminPatPermissionsCheckRoute
+  ApiAdminTestflightDryCheckRoute: typeof ApiAdminTestflightDryCheckRoute
   ApiAdminTriggerBuildRoute: typeof ApiAdminTriggerBuildRoute
+  ApiPublicOgRoute: typeof ApiPublicOgRoute
   ApiPublicTfDispatchRoute: typeof ApiPublicTfDispatchRoute
+  ApiPublicEmailConfirmationRemindersRoute: typeof ApiPublicEmailConfirmationRemindersRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/use-it-soon': {
-      id: '/use-it-soon'
-      path: '/use-it-soon'
-      fullPath: '/use-it-soon'
-      preLoaderRoute: typeof UseItSoonRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/type-ingredients': {
-      id: '/type-ingredients'
-      path: '/type-ingredients'
-      fullPath: '/type-ingredients'
-      preLoaderRoute: typeof TypeIngredientsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/test-checklist': {
-      id: '/test-checklist'
-      path: '/test-checklist'
-      fullPath: '/test-checklist'
-      preLoaderRoute: typeof TestChecklistRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sync-status': {
-      id: '/sync-status'
-      path: '/sync-status'
-      fullPath: '/sync-status'
-      preLoaderRoute: typeof SyncStatusRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/support': {
-      id: '/support'
-      path: '/support'
-      fullPath: '/support'
-      preLoaderRoute: typeof SupportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/subscription-terms': {
-      id: '/subscription-terms'
-      path: '/subscription-terms'
-      fullPath: '/subscription-terms'
-      preLoaderRoute: typeof SubscriptionTermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/social-hub': {
-      id: '/social-hub'
-      path: '/social-hub'
-      fullPath: '/social-hub'
-      preLoaderRoute: typeof SocialHubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/smart-kitchen': {
-      id: '/smart-kitchen'
-      path: '/smart-kitchen'
-      fullPath: '/smart-kitchen'
-      preLoaderRoute: typeof SmartKitchenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/smart-insights': {
-      id: '/smart-insights'
-      path: '/smart-insights'
-      fullPath: '/smart-insights'
-      preLoaderRoute: typeof SmartInsightsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/shopping-assistant': {
-      id: '/shopping-assistant'
-      path: '/shopping-assistant'
-      fullPath: '/shopping-assistant'
-      preLoaderRoute: typeof ShoppingAssistantRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/seniors': {
-      id: '/seniors'
-      path: '/seniors'
-      fullPath: '/seniors'
-      preLoaderRoute: typeof SeniorsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scan': {
-      id: '/scan'
-      path: '/scan'
-      fullPath: '/scan'
-      preLoaderRoute: typeof ScanRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/savings-hub': {
-      id: '/savings-hub'
-      path: '/savings-hub'
-      fullPath: '/savings-hub'
-      preLoaderRoute: typeof SavingsHubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/savings': {
-      id: '/savings'
-      path: '/savings'
-      fullPath: '/savings'
-      preLoaderRoute: typeof SavingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/saved': {
-      id: '/saved'
-      path: '/saved'
-      fullPath: '/saved'
-      preLoaderRoute: typeof SavedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rescue': {
-      id: '/rescue'
-      path: '/rescue'
-      fullPath: '/rescue'
-      preLoaderRoute: typeof RescueRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reminders': {
-      id: '/reminders'
-      path: '/reminders'
-      fullPath: '/reminders'
-      preLoaderRoute: typeof RemindersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/referrals': {
-      id: '/referrals'
-      path: '/referrals'
-      fullPath: '/referrals'
-      preLoaderRoute: typeof ReferralsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pro': {
-      id: '/pro'
-      path: '/pro'
-      fullPath: '/pro'
-      preLoaderRoute: typeof ProRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/preserve': {
-      id: '/preserve'
-      path: '/preserve'
-      fullPath: '/preserve'
-      preLoaderRoute: typeof PreserveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/premium-recommendations': {
-      id: '/premium-recommendations'
-      path: '/premium-recommendations'
-      fullPath: '/premium-recommendations'
-      preLoaderRoute: typeof PremiumRecommendationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/memory-kitchen': {
-      id: '/memory-kitchen'
-      path: '/memory-kitchen'
-      fullPath: '/memory-kitchen'
-      preLoaderRoute: typeof MemoryKitchenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/meal-plan': {
-      id: '/meal-plan'
-      path: '/meal-plan'
-      fullPath: '/meal-plan'
-      preLoaderRoute: typeof MealPlanRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/life-mode': {
-      id: '/life-mode'
-      path: '/life-mode'
-      fullPath: '/life-mode'
-      preLoaderRoute: typeof LifeModeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/learn': {
-      id: '/learn'
-      path: '/learn'
-      fullPath: '/learn'
-      preLoaderRoute: typeof LearnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/kitchen-tools': {
-      id: '/kitchen-tools'
-      path: '/kitchen-tools'
-      fullPath: '/kitchen-tools'
-      preLoaderRoute: typeof KitchenToolsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/kitchen-magic': {
-      id: '/kitchen-magic'
-      path: '/kitchen-magic'
-      fullPath: '/kitchen-magic'
-      preLoaderRoute: typeof KitchenMagicRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/kitchen-basics': {
-      id: '/kitchen-basics'
-      path: '/kitchen-basics'
-      fullPath: '/kitchen-basics'
-      preLoaderRoute: typeof KitchenBasicsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/kids': {
-      id: '/kids'
-      path: '/kids'
-      fullPath: '/kids'
-      preLoaderRoute: typeof KidsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/health-companion': {
-      id: '/health-companion'
-      path: '/health-companion'
-      fullPath: '/health-companion'
-      preLoaderRoute: typeof HealthCompanionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/health': {
-      id: '/health'
-      path: '/health'
-      fullPath: '/health'
-      preLoaderRoute: typeof HealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/growth': {
-      id: '/growth'
-      path: '/growth'
-      fullPath: '/growth'
-      preLoaderRoute: typeof GrowthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/grocery-plus': {
-      id: '/grocery-plus'
-      path: '/grocery-plus'
-      fullPath: '/grocery-plus'
-      preLoaderRoute: typeof GroceryPlusRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/going-bad': {
-      id: '/going-bad'
-      path: '/going-bad'
-      fullPath: '/going-bad'
-      preLoaderRoute: typeof GoingBadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fun-mode': {
-      id: '/fun-mode'
-      path: '/fun-mode'
-      fullPath: '/fun-mode'
-      preLoaderRoute: typeof FunModeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/food-preferences': {
-      id: '/food-preferences'
-      path: '/food-preferences'
-      fullPath: '/food-preferences'
-      preLoaderRoute: typeof FoodPreferencesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/features': {
-      id: '/features'
-      path: '/features'
-      fullPath: '/features'
-      preLoaderRoute: typeof FeaturesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fasting': {
-      id: '/fasting'
-      path: '/fasting'
-      fullPath: '/fasting'
-      preLoaderRoute: typeof FastingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/family-legacy': {
-      id: '/family-legacy'
-      path: '/family-legacy'
-      fullPath: '/family-legacy'
-      preLoaderRoute: typeof FamilyLegacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/drinks': {
-      id: '/drinks'
-      path: '/drinks'
-      fullPath: '/drinks'
-      preLoaderRoute: typeof DrinksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/delete-account': {
-      id: '/delete-account'
-      path: '/delete-account'
-      fullPath: '/delete-account'
-      preLoaderRoute: typeof DeleteAccountRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/day-of-meals': {
-      id: '/day-of-meals'
-      path: '/day-of-meals'
-      fullPath: '/day-of-meals'
-      preLoaderRoute: typeof DayOfMealsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/daily-coach': {
-      id: '/daily-coach'
-      path: '/daily-coach'
-      fullPath: '/daily-coach'
-      preLoaderRoute: typeof DailyCoachRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cupboard': {
-      id: '/cupboard'
-      path: '/cupboard'
-      fullPath: '/cupboard'
-      preLoaderRoute: typeof CupboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/community': {
-      id: '/community'
-      path: '/community'
-      fullPath: '/community'
-      preLoaderRoute: typeof CommunityRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chef-rescue': {
-      id: '/chef-rescue'
-      path: '/chef-rescue'
-      fullPath: '/chef-rescue'
-      preLoaderRoute: typeof ChefRescueRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chef-companion': {
-      id: '/chef-companion'
-      path: '/chef-companion'
-      fullPath: '/chef-companion'
-      preLoaderRoute: typeof ChefCompanionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bodybuilder': {
-      id: '/bodybuilder'
-      path: '/bodybuilder'
-      fullPath: '/bodybuilder'
-      preLoaderRoute: typeof BodybuilderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/before-you-shop': {
-      id: '/before-you-shop'
-      path: '/before-you-shop'
-      fullPath: '/before-you-shop'
-      preLoaderRoute: typeof BeforeYouShopRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/around-the-world': {
-      id: '/around-the-world'
-      path: '/around-the-world'
-      fullPath: '/around-the-world'
-      preLoaderRoute: typeof AroundTheWorldRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/account': {
-      id: '/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AccountRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/academy': {
-      id: '/academy'
-      path: '/academy'
-      fullPath: '/academy'
-      preLoaderRoute: typeof AcademyRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about-chef': {
@@ -1373,11 +1596,606 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutChefRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/academy': {
+      id: '/academy'
+      path: '/academy'
+      fullPath: '/academy'
+      preLoaderRoute: typeof AcademyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/around-the-world': {
+      id: '/around-the-world'
+      path: '/around-the-world'
+      fullPath: '/around-the-world'
+      preLoaderRoute: typeof AroundTheWorldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/before-you-shop': {
+      id: '/before-you-shop'
+      path: '/before-you-shop'
+      fullPath: '/before-you-shop'
+      preLoaderRoute: typeof BeforeYouShopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bodybuilder': {
+      id: '/bodybuilder'
+      path: '/bodybuilder'
+      fullPath: '/bodybuilder'
+      preLoaderRoute: typeof BodybuilderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/budget-plan': {
+      id: '/budget-plan'
+      path: '/budget-plan'
+      fullPath: '/budget-plan'
+      preLoaderRoute: typeof BudgetPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bulk-shopping': {
+      id: '/bulk-shopping'
+      path: '/bulk-shopping'
+      fullPath: '/bulk-shopping'
+      preLoaderRoute: typeof BulkShoppingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chef-companion': {
+      id: '/chef-companion'
+      path: '/chef-companion'
+      fullPath: '/chef-companion'
+      preLoaderRoute: typeof ChefCompanionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chef-rescue': {
+      id: '/chef-rescue'
+      path: '/chef-rescue'
+      fullPath: '/chef-rescue'
+      preLoaderRoute: typeof ChefRescueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cook-with-chef': {
+      id: '/cook-with-chef'
+      path: '/cook-with-chef'
+      fullPath: '/cook-with-chef'
+      preLoaderRoute: typeof CookWithChefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cupboard': {
+      id: '/cupboard'
+      path: '/cupboard'
+      fullPath: '/cupboard'
+      preLoaderRoute: typeof CupboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/daily-coach': {
+      id: '/daily-coach'
+      path: '/daily-coach'
+      fullPath: '/daily-coach'
+      preLoaderRoute: typeof DailyCoachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/day-of-meals': {
+      id: '/day-of-meals'
+      path: '/day-of-meals'
+      fullPath: '/day-of-meals'
+      preLoaderRoute: typeof DayOfMealsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/delete-account': {
+      id: '/delete-account'
+      path: '/delete-account'
+      fullPath: '/delete-account'
+      preLoaderRoute: typeof DeleteAccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/drinks': {
+      id: '/drinks'
+      path: '/drinks'
+      fullPath: '/drinks'
+      preLoaderRoute: typeof DrinksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/expiry': {
+      id: '/expiry'
+      path: '/expiry'
+      fullPath: '/expiry'
+      preLoaderRoute: typeof ExpiryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/family-legacy': {
+      id: '/family-legacy'
+      path: '/family-legacy'
+      fullPath: '/family-legacy'
+      preLoaderRoute: typeof FamilyLegacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fasting': {
+      id: '/fasting'
+      path: '/fasting'
+      fullPath: '/fasting'
+      preLoaderRoute: typeof FastingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/features': {
+      id: '/features'
+      path: '/features'
+      fullPath: '/features'
+      preLoaderRoute: typeof FeaturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/food-preferences': {
+      id: '/food-preferences'
+      path: '/food-preferences'
+      fullPath: '/food-preferences'
+      preLoaderRoute: typeof FoodPreferencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fridge-scan': {
+      id: '/fridge-scan'
+      path: '/fridge-scan'
+      fullPath: '/fridge-scan'
+      preLoaderRoute: typeof FridgeScanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fun-mode': {
+      id: '/fun-mode'
+      path: '/fun-mode'
+      fullPath: '/fun-mode'
+      preLoaderRoute: typeof FunModeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gerd': {
+      id: '/gerd'
+      path: '/gerd'
+      fullPath: '/gerd'
+      preLoaderRoute: typeof GerdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/going-bad': {
+      id: '/going-bad'
+      path: '/going-bad'
+      fullPath: '/going-bad'
+      preLoaderRoute: typeof GoingBadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/grocery-list': {
+      id: '/grocery-list'
+      path: '/grocery-list'
+      fullPath: '/grocery-list'
+      preLoaderRoute: typeof GroceryListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/grocery-plus': {
+      id: '/grocery-plus'
+      path: '/grocery-plus'
+      fullPath: '/grocery-plus'
+      preLoaderRoute: typeof GroceryPlusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/growth': {
+      id: '/growth'
+      path: '/growth'
+      fullPath: '/growth'
+      preLoaderRoute: typeof GrowthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health-companion': {
+      id: '/health-companion'
+      path: '/health-companion'
+      fullPath: '/health-companion'
+      preLoaderRoute: typeof HealthCompanionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kids': {
+      id: '/kids'
+      path: '/kids'
+      fullPath: '/kids'
+      preLoaderRoute: typeof KidsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kitchen-basics': {
+      id: '/kitchen-basics'
+      path: '/kitchen-basics'
+      fullPath: '/kitchen-basics'
+      preLoaderRoute: typeof KitchenBasicsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kitchen-guide': {
+      id: '/kitchen-guide'
+      path: '/kitchen-guide'
+      fullPath: '/kitchen-guide'
+      preLoaderRoute: typeof KitchenGuideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kitchen-magic': {
+      id: '/kitchen-magic'
+      path: '/kitchen-magic'
+      fullPath: '/kitchen-magic'
+      preLoaderRoute: typeof KitchenMagicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kitchen-tools': {
+      id: '/kitchen-tools'
+      path: '/kitchen-tools'
+      fullPath: '/kitchen-tools'
+      preLoaderRoute: typeof KitchenToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/learn': {
+      id: '/learn'
+      path: '/learn'
+      fullPath: '/learn'
+      preLoaderRoute: typeof LearnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leftovers': {
+      id: '/leftovers'
+      path: '/leftovers'
+      fullPath: '/leftovers'
+      preLoaderRoute: typeof LeftoversRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leftovers-builder': {
+      id: '/leftovers-builder'
+      path: '/leftovers-builder'
+      fullPath: '/leftovers-builder'
+      preLoaderRoute: typeof LeftoversBuilderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/life-mode': {
+      id: '/life-mode'
+      path: '/life-mode'
+      fullPath: '/life-mode'
+      preLoaderRoute: typeof LifeModeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/meal-costs': {
+      id: '/meal-costs'
+      path: '/meal-costs'
+      fullPath: '/meal-costs'
+      preLoaderRoute: typeof MealCostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/meal-plan': {
+      id: '/meal-plan'
+      path: '/meal-plan'
+      fullPath: '/meal-plan'
+      preLoaderRoute: typeof MealPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memory-kitchen': {
+      id: '/memory-kitchen'
+      path: '/memory-kitchen'
+      fullPath: '/memory-kitchen'
+      preLoaderRoute: typeof MemoryKitchenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mobile-qa': {
+      id: '/mobile-qa'
+      path: '/mobile-qa'
+      fullPath: '/mobile-qa'
+      preLoaderRoute: typeof MobileQaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nearby-stores': {
+      id: '/nearby-stores'
+      path: '/nearby-stores'
+      fullPath: '/nearby-stores'
+      preLoaderRoute: typeof NearbyStoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/premium-recommendations': {
+      id: '/premium-recommendations'
+      path: '/premium-recommendations'
+      fullPath: '/premium-recommendations'
+      preLoaderRoute: typeof PremiumRecommendationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preserve': {
+      id: '/preserve'
+      path: '/preserve'
+      fullPath: '/preserve'
+      preLoaderRoute: typeof PreserveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pro': {
+      id: '/pro'
+      path: '/pro'
+      fullPath: '/pro'
+      preLoaderRoute: typeof ProRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recipe-card': {
+      id: '/recipe-card'
+      path: '/recipe-card'
+      fullPath: '/recipe-card'
+      preLoaderRoute: typeof RecipeCardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recipes': {
+      id: '/recipes'
+      path: '/recipes'
+      fullPath: '/recipes'
+      preLoaderRoute: typeof RecipesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/referrals': {
+      id: '/referrals'
+      path: '/referrals'
+      fullPath: '/referrals'
+      preLoaderRoute: typeof ReferralsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reminders': {
+      id: '/reminders'
+      path: '/reminders'
+      fullPath: '/reminders'
+      preLoaderRoute: typeof RemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rescue': {
+      id: '/rescue'
+      path: '/rescue'
+      fullPath: '/rescue'
+      preLoaderRoute: typeof RescueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/saved': {
+      id: '/saved'
+      path: '/saved'
+      fullPath: '/saved'
+      preLoaderRoute: typeof SavedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/savings': {
+      id: '/savings'
+      path: '/savings'
+      fullPath: '/savings'
+      preLoaderRoute: typeof SavingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/savings-hub': {
+      id: '/savings-hub'
+      path: '/savings-hub'
+      fullPath: '/savings-hub'
+      preLoaderRoute: typeof SavingsHubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scan': {
+      id: '/scan'
+      path: '/scan'
+      fullPath: '/scan'
+      preLoaderRoute: typeof ScanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scan-history': {
+      id: '/scan-history'
+      path: '/scan-history'
+      fullPath: '/scan-history'
+      preLoaderRoute: typeof ScanHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/seniors': {
+      id: '/seniors'
+      path: '/seniors'
+      fullPath: '/seniors'
+      preLoaderRoute: typeof SeniorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shopping-assistant': {
+      id: '/shopping-assistant'
+      path: '/shopping-assistant'
+      fullPath: '/shopping-assistant'
+      preLoaderRoute: typeof ShoppingAssistantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shopping-list': {
+      id: '/shopping-list'
+      path: '/shopping-list'
+      fullPath: '/shopping-list'
+      preLoaderRoute: typeof ShoppingListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shopping-plan': {
+      id: '/shopping-plan'
+      path: '/shopping-plan'
+      fullPath: '/shopping-plan'
+      preLoaderRoute: typeof ShoppingPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shopping-trip': {
+      id: '/shopping-trip'
+      path: '/shopping-trip'
+      fullPath: '/shopping-trip'
+      preLoaderRoute: typeof ShoppingTripRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/smart-insights': {
+      id: '/smart-insights'
+      path: '/smart-insights'
+      fullPath: '/smart-insights'
+      preLoaderRoute: typeof SmartInsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/smart-kitchen': {
+      id: '/smart-kitchen'
+      path: '/smart-kitchen'
+      fullPath: '/smart-kitchen'
+      preLoaderRoute: typeof SmartKitchenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/social-hub': {
+      id: '/social-hub'
+      path: '/social-hub'
+      fullPath: '/social-hub'
+      preLoaderRoute: typeof SocialHubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/store-help': {
+      id: '/store-help'
+      path: '/store-help'
+      fullPath: '/store-help'
+      preLoaderRoute: typeof StoreHelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/store-mode': {
+      id: '/store-mode'
+      path: '/store-mode'
+      fullPath: '/store-mode'
+      preLoaderRoute: typeof StoreModeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/store-scan': {
+      id: '/store-scan'
+      path: '/store-scan'
+      fullPath: '/store-scan'
+      preLoaderRoute: typeof StoreScanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stretch-my-groceries': {
+      id: '/stretch-my-groceries'
+      path: '/stretch-my-groceries'
+      fullPath: '/stretch-my-groceries'
+      preLoaderRoute: typeof StretchMyGroceriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/style-ideas': {
+      id: '/style-ideas'
+      path: '/style-ideas'
+      fullPath: '/style-ideas'
+      preLoaderRoute: typeof StyleIdeasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscription-terms': {
+      id: '/subscription-terms'
+      path: '/subscription-terms'
+      fullPath: '/subscription-terms'
+      preLoaderRoute: typeof SubscriptionTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/substitutions': {
+      id: '/substitutions'
+      path: '/substitutions'
+      fullPath: '/substitutions'
+      preLoaderRoute: typeof SubstitutionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sync-status': {
+      id: '/sync-status'
+      path: '/sync-status'
+      fullPath: '/sync-status'
+      preLoaderRoute: typeof SyncStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/test-checklist': {
+      id: '/test-checklist'
+      path: '/test-checklist'
+      fullPath: '/test-checklist'
+      preLoaderRoute: typeof TestChecklistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/type-ingredients': {
+      id: '/type-ingredients'
+      path: '/type-ingredients'
+      fullPath: '/type-ingredients'
+      preLoaderRoute: typeof TypeIngredientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/use-it-soon': {
+      id: '/use-it-soon'
+      path: '/use-it-soon'
+      fullPath: '/use-it-soon'
+      preLoaderRoute: typeof UseItSoonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/voice-profiles': {
+      id: '/voice-profiles'
+      path: '/voice-profiles'
+      fullPath: '/voice-profiles'
+      preLoaderRoute: typeof VoiceProfilesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/academy/': {
@@ -1387,19 +2205,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AcademyIndexRouteImport
       parentRoute: typeof AcademyRoute
     }
-    '/checkout/return': {
-      id: '/checkout/return'
-      path: '/checkout/return'
-      fullPath: '/checkout/return'
-      preLoaderRoute: typeof CheckoutReturnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/build-secrets': {
-      id: '/admin/build-secrets'
-      path: '/admin/build-secrets'
-      fullPath: '/admin/build-secrets'
-      preLoaderRoute: typeof AdminBuildSecretsRouteImport
-      parentRoute: typeof rootRouteImport
+    '/academy/$section': {
+      id: '/academy/$section'
+      path: '/$section'
+      fullPath: '/academy/$section'
+      preLoaderRoute: typeof AcademySectionRouteImport
+      parentRoute: typeof AcademyRoute
     }
     '/academy/ask': {
       id: '/academy/ask'
@@ -1408,53 +2219,116 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AcademyAskRouteImport
       parentRoute: typeof AcademyRoute
     }
-    '/academy/$section': {
-      id: '/academy/$section'
-      path: '/$section'
-      fullPath: '/academy/$section'
-      preLoaderRoute: typeof AcademySectionRouteImport
-      parentRoute: typeof AcademyRoute
-    }
-    '/api/public/tf-dispatch': {
-      id: '/api/public/tf-dispatch'
-      path: '/api/public/tf-dispatch'
-      fullPath: '/api/public/tf-dispatch'
-      preLoaderRoute: typeof ApiPublicTfDispatchRouteImport
+    '/admin/build-secrets': {
+      id: '/admin/build-secrets'
+      path: '/admin/build-secrets'
+      fullPath: '/admin/build-secrets'
+      preLoaderRoute: typeof AdminBuildSecretsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/trigger-build': {
-      id: '/api/admin/trigger-build'
-      path: '/api/admin/trigger-build'
-      fullPath: '/api/admin/trigger-build'
-      preLoaderRoute: typeof ApiAdminTriggerBuildRouteImport
+    '/admin/ios-secrets-check': {
+      id: '/admin/ios-secrets-check'
+      path: '/admin/ios-secrets-check'
+      fullPath: '/admin/ios-secrets-check'
+      preLoaderRoute: typeof AdminIosSecretsCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/pat-permissions-check': {
-      id: '/api/admin/pat-permissions-check'
-      path: '/api/admin/pat-permissions-check'
-      fullPath: '/api/admin/pat-permissions-check'
-      preLoaderRoute: typeof ApiAdminPatPermissionsCheckRouteImport
+    '/admin/voice-health': {
+      id: '/admin/voice-health'
+      path: '/admin/voice-health'
+      fullPath: '/admin/voice-health'
+      preLoaderRoute: typeof AdminVoiceHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/build-status': {
-      id: '/api/admin/build-status'
-      path: '/api/admin/build-status'
-      fullPath: '/api/admin/build-status'
-      preLoaderRoute: typeof ApiAdminBuildStatusRouteImport
+    '/checkout/return': {
+      id: '/checkout/return'
+      path: '/checkout/return'
+      fullPath: '/checkout/return'
+      preLoaderRoute: typeof CheckoutReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/build-secrets-status': {
-      id: '/api/admin/build-secrets-status'
-      path: '/api/admin/build-secrets-status'
-      fullPath: '/api/admin/build-secrets-status'
-      preLoaderRoute: typeof ApiAdminBuildSecretsStatusRouteImport
+    '/cooking-questions/': {
+      id: '/cooking-questions/'
+      path: '/cooking-questions'
+      fullPath: '/cooking-questions/'
+      preLoaderRoute: typeof CookingQuestionsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/build-preflight': {
-      id: '/api/admin/build-preflight'
-      path: '/api/admin/build-preflight'
-      fullPath: '/api/admin/build-preflight'
-      preLoaderRoute: typeof ApiAdminBuildPreflightRouteImport
+    '/cooking-questions/$question': {
+      id: '/cooking-questions/$question'
+      path: '/cooking-questions/$question'
+      fullPath: '/cooking-questions/$question'
+      preLoaderRoute: typeof CookingQuestionsQuestionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cuisines/': {
+      id: '/cuisines/'
+      path: '/cuisines'
+      fullPath: '/cuisines/'
+      preLoaderRoute: typeof CuisinesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cuisines/$cuisine': {
+      id: '/cuisines/$cuisine'
+      path: '/cuisines/$cuisine'
+      fullPath: '/cuisines/$cuisine'
+      preLoaderRoute: typeof CuisinesCuisineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diets/': {
+      id: '/diets/'
+      path: '/diets'
+      fullPath: '/diets/'
+      preLoaderRoute: typeof DietsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diets/$diet': {
+      id: '/diets/$diet'
+      path: '/diets/$diet'
+      fullPath: '/diets/$diet'
+      preLoaderRoute: typeof DietsDietRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/how-to-make/': {
+      id: '/how-to-make/'
+      path: '/how-to-make'
+      fullPath: '/how-to-make/'
+      preLoaderRoute: typeof HowToMakeIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/how-to-make/$dish': {
+      id: '/how-to-make/$dish'
+      path: '/how-to-make/$dish'
+      fullPath: '/how-to-make/$dish'
+      preLoaderRoute: typeof HowToMakeDishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ingredients/': {
+      id: '/ingredients/'
+      path: '/ingredients'
+      fullPath: '/ingredients/'
+      preLoaderRoute: typeof IngredientsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ingredients/$ingredient': {
+      id: '/ingredients/$ingredient'
+      path: '/ingredients/$ingredient'
+      fullPath: '/ingredients/$ingredient'
+      preLoaderRoute: typeof IngredientsIngredientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leftover-ideas/': {
+      id: '/leftover-ideas/'
+      path: '/leftover-ideas'
+      fullPath: '/leftover-ideas/'
+      preLoaderRoute: typeof LeftoverIdeasIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leftover-ideas/$leftover': {
+      id: '/leftover-ideas/$leftover'
+      path: '/leftover-ideas/$leftover'
+      fullPath: '/leftover-ideas/$leftover'
+      preLoaderRoute: typeof LeftoverIdeasLeftoverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/build-config-check': {
@@ -1464,11 +2338,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminBuildConfigCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/build-preflight': {
+      id: '/api/admin/build-preflight'
+      path: '/api/admin/build-preflight'
+      fullPath: '/api/admin/build-preflight'
+      preLoaderRoute: typeof ApiAdminBuildPreflightRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/build-secrets-status': {
+      id: '/api/admin/build-secrets-status'
+      path: '/api/admin/build-secrets-status'
+      fullPath: '/api/admin/build-secrets-status'
+      preLoaderRoute: typeof ApiAdminBuildSecretsStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/build-status': {
+      id: '/api/admin/build-status'
+      path: '/api/admin/build-status'
+      fullPath: '/api/admin/build-status'
+      preLoaderRoute: typeof ApiAdminBuildStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/pat-permissions-check': {
+      id: '/api/admin/pat-permissions-check'
+      path: '/api/admin/pat-permissions-check'
+      fullPath: '/api/admin/pat-permissions-check'
+      preLoaderRoute: typeof ApiAdminPatPermissionsCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/testflight-dry-check': {
+      id: '/api/admin/testflight-dry-check'
+      path: '/api/admin/testflight-dry-check'
+      fullPath: '/api/admin/testflight-dry-check'
+      preLoaderRoute: typeof ApiAdminTestflightDryCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/trigger-build': {
+      id: '/api/admin/trigger-build'
+      path: '/api/admin/trigger-build'
+      fullPath: '/api/admin/trigger-build'
+      preLoaderRoute: typeof ApiAdminTriggerBuildRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/og': {
+      id: '/api/public/og'
+      path: '/api/public/og'
+      fullPath: '/api/public/og'
+      preLoaderRoute: typeof ApiPublicOgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/tf-dispatch': {
+      id: '/api/public/tf-dispatch'
+      path: '/api/public/tf-dispatch'
+      fullPath: '/api/public/tf-dispatch'
+      preLoaderRoute: typeof ApiPublicTfDispatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/email/confirmation-reminders': {
+      id: '/api/public/email/confirmation-reminders'
+      path: '/api/public/email/confirmation-reminders'
+      fullPath: '/api/public/email/confirmation-reminders'
+      preLoaderRoute: typeof ApiPublicEmailConfirmationRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
       path: '/api/public/payments/webhook'
       fullPath: '/api/public/payments/webhook'
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1498,67 +2442,115 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BeforeYouShopRoute: BeforeYouShopRoute,
   BodybuilderRoute: BodybuilderRoute,
+  BudgetPlanRoute: BudgetPlanRoute,
+  BulkShoppingRoute: BulkShoppingRoute,
   ChefCompanionRoute: ChefCompanionRoute,
   ChefRescueRoute: ChefRescueRoute,
   CommunityRoute: CommunityRoute,
+  CookWithChefRoute: CookWithChefRoute,
   CupboardRoute: CupboardRoute,
   DailyCoachRoute: DailyCoachRoute,
   DayOfMealsRoute: DayOfMealsRoute,
   DeleteAccountRoute: DeleteAccountRoute,
   DrinksRoute: DrinksRoute,
+  ExpiryRoute: ExpiryRoute,
   FamilyLegacyRoute: FamilyLegacyRoute,
   FastingRoute: FastingRoute,
   FeaturesRoute: FeaturesRoute,
   FoodPreferencesRoute: FoodPreferencesRoute,
+  FridgeScanRoute: FridgeScanRoute,
   FunModeRoute: FunModeRoute,
+  GerdRoute: GerdRoute,
   GoingBadRoute: GoingBadRoute,
+  GroceryListRoute: GroceryListRoute,
   GroceryPlusRoute: GroceryPlusRoute,
   GrowthRoute: GrowthRoute,
   HealthRoute: HealthRoute,
   HealthCompanionRoute: HealthCompanionRoute,
   KidsRoute: KidsRoute,
   KitchenBasicsRoute: KitchenBasicsRoute,
+  KitchenGuideRoute: KitchenGuideRoute,
   KitchenMagicRoute: KitchenMagicRoute,
   KitchenToolsRoute: KitchenToolsRoute,
   LearnRoute: LearnRoute,
+  LeftoversRoute: LeftoversRoute,
+  LeftoversBuilderRoute: LeftoversBuilderRoute,
   LifeModeRoute: LifeModeRoute,
+  MealCostsRoute: MealCostsRoute,
   MealPlanRoute: MealPlanRoute,
   MemoryKitchenRoute: MemoryKitchenRoute,
+  MobileQaRoute: MobileQaRoute,
+  NearbyStoresRoute: NearbyStoresRoute,
   OnboardingRoute: OnboardingRoute,
   PremiumRecommendationsRoute: PremiumRecommendationsRoute,
   PreserveRoute: PreserveRoute,
   PrivacyRoute: PrivacyRoute,
   ProRoute: ProRoute,
+  RecipeCardRoute: RecipeCardRoute,
+  RecipesRoute: RecipesRoute,
   ReferralsRoute: ReferralsRoute,
   RemindersRoute: RemindersRoute,
   RescueRoute: RescueRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SavedRoute: SavedRoute,
   SavingsRoute: SavingsRoute,
   SavingsHubRoute: SavingsHubRoute,
   ScanRoute: ScanRoute,
+  ScanHistoryRoute: ScanHistoryRoute,
+  SearchRoute: SearchRoute,
   SeniorsRoute: SeniorsRoute,
+  SettingsRoute: SettingsRoute,
   ShoppingAssistantRoute: ShoppingAssistantRoute,
+  ShoppingListRoute: ShoppingListRoute,
+  ShoppingPlanRoute: ShoppingPlanRoute,
+  ShoppingTripRoute: ShoppingTripRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SmartInsightsRoute: SmartInsightsRoute,
   SmartKitchenRoute: SmartKitchenRoute,
   SocialHubRoute: SocialHubRoute,
+  StoreHelpRoute: StoreHelpRoute,
+  StoreModeRoute: StoreModeRoute,
+  StoreScanRoute: StoreScanRoute,
+  StretchMyGroceriesRoute: StretchMyGroceriesRoute,
+  StyleIdeasRoute: StyleIdeasRoute,
   SubscriptionTermsRoute: SubscriptionTermsRoute,
+  SubstitutionsRoute: SubstitutionsRoute,
   SupportRoute: SupportRoute,
   SyncStatusRoute: SyncStatusRoute,
   TermsRoute: TermsRoute,
   TestChecklistRoute: TestChecklistRoute,
   TypeIngredientsRoute: TypeIngredientsRoute,
   UseItSoonRoute: UseItSoonRoute,
+  VoiceProfilesRoute: VoiceProfilesRoute,
   AdminBuildSecretsRoute: AdminBuildSecretsRoute,
+  AdminIosSecretsCheckRoute: AdminIosSecretsCheckRoute,
+  AdminVoiceHealthRoute: AdminVoiceHealthRoute,
   CheckoutReturnRoute: CheckoutReturnRoute,
+  CookingQuestionsQuestionRoute: CookingQuestionsQuestionRoute,
+  CuisinesCuisineRoute: CuisinesCuisineRoute,
+  DietsDietRoute: DietsDietRoute,
+  HowToMakeDishRoute: HowToMakeDishRoute,
+  IngredientsIngredientRoute: IngredientsIngredientRoute,
+  LeftoverIdeasLeftoverRoute: LeftoverIdeasLeftoverRoute,
+  CookingQuestionsIndexRoute: CookingQuestionsIndexRoute,
+  CuisinesIndexRoute: CuisinesIndexRoute,
+  DietsIndexRoute: DietsIndexRoute,
+  HowToMakeIndexRoute: HowToMakeIndexRoute,
+  IngredientsIndexRoute: IngredientsIndexRoute,
+  LeftoverIdeasIndexRoute: LeftoverIdeasIndexRoute,
   ApiAdminBuildConfigCheckRoute: ApiAdminBuildConfigCheckRoute,
   ApiAdminBuildPreflightRoute: ApiAdminBuildPreflightRoute,
   ApiAdminBuildSecretsStatusRoute: ApiAdminBuildSecretsStatusRoute,
   ApiAdminBuildStatusRoute: ApiAdminBuildStatusRoute,
   ApiAdminPatPermissionsCheckRoute: ApiAdminPatPermissionsCheckRoute,
+  ApiAdminTestflightDryCheckRoute: ApiAdminTestflightDryCheckRoute,
   ApiAdminTriggerBuildRoute: ApiAdminTriggerBuildRoute,
+  ApiPublicOgRoute: ApiPublicOgRoute,
   ApiPublicTfDispatchRoute: ApiPublicTfDispatchRoute,
+  ApiPublicEmailConfirmationRemindersRoute:
+    ApiPublicEmailConfirmationRemindersRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

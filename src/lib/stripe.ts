@@ -1,4 +1,7 @@
-import { loadStripe, type Stripe } from "@stripe/stripe-js";
+// "/pure" defers loading Stripe's script until checkout is actually opened,
+// instead of injecting it on every launch (including inside the iOS app).
+import { loadStripe } from "@stripe/stripe-js/pure";
+import type { Stripe } from "@stripe/stripe-js";
 
 type StripeEnv = "sandbox" | "live";
 

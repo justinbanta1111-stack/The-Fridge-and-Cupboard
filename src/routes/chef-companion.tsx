@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
 import {
   Mic,
   ChefHat,
@@ -94,6 +95,13 @@ function openChef(prefill?: string) {
 }
 
 function ChefCompanionPage() {
+  useEffect(() => {
+    // Companion Mode is hands-free: open the voice session and start
+    // listening automatically — no microphone tap required.
+    const t = setTimeout(() => openChef(), 150);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <div className="min-h-dvh bg-background pb-24">
       <SiteNav />
@@ -133,10 +141,10 @@ function ChefCompanionPage() {
             onClick={() => openChef()}
             className="mt-5 h-14 w-full gap-2 rounded-full bg-gradient-to-r from-[oklch(0.6_0.2_30)] to-[oklch(0.5_0.2_290)] text-base font-semibold text-white shadow-lg hover:opacity-95"
           >
-            <Mic className="h-5 w-5" /> Tap to talk
+            <Mic className="h-5 w-5" /> Chef Super J is listening — just talk
           </Button>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Optional. Voice can be turned off anytime in Settings.
+            Hands-free. Voice can be turned off anytime in Settings.
           </p>
         </Card>
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowDown, CheckCircle2, Share, Smartphone, X } from "lucide-react";
+import { ArrowDown, CheckCircle2, ExternalLink, Share, Smartphone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -12,16 +12,59 @@ import {
   type Platform,
 } from "@/lib/pwa-install";
 import appIcon from "@/assets/chef-super-j-icon.png.asset.json";
+import { supabase } from "@/integrations/supabase/client";
+import { APP_STORE_URL, storeListingUrl } from "@/lib/store-links";
+import { nativePlatform } from "@/lib/native-runtime";
 
 export const INSTALL_DISMISS_KEY = "fc.installPrompt.dismissedAt";
+export const INSTALLED_FLAG_KEY = "fc.pwa.installed";
+/** iOS Safari never fires `appinstalled`, so we remember that we showed the steps. */
+export const IOS_PROMPTED_KEY = "fc.pwa.iosPromptedAt";
+
+function isNativeApp() {
+  if (typeof window === "undefined") return false;
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; platform?: string } }).Capacitor;
+  if (!cap) return false;
+  try {
+    if (typeof cap.isNativePlatform === "function") return cap.isNativePlatform();
+  } catch {
+    /* ignore */
+  }
+  return cap.platform === "ios" || cap.platform === "android";
+}
 
 function isStandalone() {
   if (typeof window === "undefined") return false;
+  if (isNativeApp()) return true;
   return (
     window.matchMedia?.("(display-mode: standalone)").matches ||
     // @ts-expect-error iOS Safari
     window.navigator.standalone === true
   );
+}
+
+function readInstalledFlag() {
+  try {
+    return localStorage.getItem(INSTALLED_FLAG_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeInstalledFlag() {
+  try {
+    localStorage.setItem(INSTALLED_FLAG_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+function markIosPrompted() {
+  try { localStorage.setItem(IOS_PROMPTED_KEY, String(Date.now())); } catch { /* ignore */ }
+}
+
+function readIosPrompted() {
+  try { return Boolean(localStorage.getItem(IOS_PROMPTED_KEY)); } catch { return false; }
 }
 
 function isIosSafari() {
@@ -138,7 +181,13 @@ export function InstallAppButton({
 }) {
   const [open, setOpen] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const [standalone, setStandalone] = useState(false);
   const [platform, setPlatform] = useState<Platform>("unknown");
+  const [iosPrompted, setIosPrompted] = useState(false);
+  const [nativeIos, setNativeIos] = useState(false);
+  // Existing members (already signed in) are already "in" the app — never
+  // offer them the add/install prompt again.
+  const [existingUser, setExistingUser] = useState(false);
   const [diagnostics, setDiagnostics] = useState<PwaDiagnosticsSnapshot>(() =>
     getPwaDiagnosticsSnapshot(),
   );
@@ -152,8 +201,52 @@ export function InstallAppButton({
     return subscribePwaDiagnostics((snapshot) => {
       setDiagnostics(snapshot);
       setPlatform(snapshot.platform);
-      setInstalled(snapshot.installed || isStandalone());
+      const standaloneNow = snapshot.installed || isStandalone();
+      if (standaloneNow) {
+        setStandalone(true);
+        writeInstalledFlag();
+      }
+      setInstalled((prev) => prev || standaloneNow);
     });
+  }, []);
+
+  // Remember installs across sessions so an installed user is never asked again.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (readInstalledFlag()) setInstalled(true);
+
+    const onInstalled = () => {
+      writeInstalledFlag();
+      setInstalled(true);
+    };
+    window.addEventListener("appinstalled", onInstalled);
+
+    type RelatedApp = { id?: string; platform?: string; url?: string };
+    const nav = navigator as Navigator & {
+      getInstalledRelatedApps?: () => Promise<RelatedApp[]>;
+    };
+    void nav.getInstalledRelatedApps?.().then((apps) => {
+      if (apps && apps.length > 0) {
+        writeInstalledFlag();
+        setInstalled(true);
+      }
+    }).catch(() => { /* ignore */ });
+
+    return () => window.removeEventListener("appinstalled", onInstalled);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active) setExistingUser(Boolean(data.session?.user));
+    }).catch(() => { /* ignore */ });
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
+      setExistingUser(Boolean(session?.user));
+    });
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -162,17 +255,72 @@ export function InstallAppButton({
     return () => window.removeEventListener("tfc:close-install-modal", closeModal);
   }, []);
 
+  // iOS Safari fallback: `appinstalled` and getInstalledRelatedApps() never fire there.
+  // Re-check display-mode on every resume, and remember that we showed the steps so we
+  // can ask the user once ("Already added it?") instead of relying on an event.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setNativeIos(isNativeApp() && nativePlatform() === "ios");
+    setIosPrompted(readIosPrompted());
+
+    const recheck = () => {
+      if (isStandalone()) {
+        writeInstalledFlag();
+        setStandalone(true);
+        setInstalled(true);
+      }
+    };
+    recheck();
+
+    const mql = window.matchMedia?.("(display-mode: standalone)");
+    mql?.addEventListener?.("change", recheck);
+    window.addEventListener("visibilitychange", recheck);
+    window.addEventListener("pageshow", recheck);
+    window.addEventListener("focus", recheck);
+    return () => {
+      mql?.removeEventListener?.("change", recheck);
+      window.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("pageshow", recheck);
+      window.removeEventListener("focus", recheck);
+    };
+  }, []);
+
+  if (nativeIos) {
+    return (
+      <Button asChild className={cn("h-9 shrink-0 gap-1.5 px-3 text-xs", className)}>
+        <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="View The Fridge and Cupboard in the App Store">
+          <ExternalLink className="h-4 w-4" aria-hidden="true" /> View in App Store
+        </a>
+      </Button>
+    );
+  }
+
+  const confirmInstalled = () => {
+    writeInstalledFlag();
+    setInstalled(true);
+    setOpen(false);
+  };
+
   async function handleClick(e: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.stopPropagation();
     if ("nativeEvent" in e && e.nativeEvent && !e.nativeEvent.isTrusted) return;
     try { (navigator as Navigator & { vibrate?: (p: number) => void }).vibrate?.(8); } catch { /* ignore */ }
 
+    // Once the official App Store / Google Play listings are live, send people
+    // straight to the right one for their device.
+    const listing = storeListingUrl();
+    if (listing) {
+      window.open(listing, "_blank", "noopener,noreferrer");
+      return;
+    }
+
     if (isStandalone()) {
       setInstalled(true);
       setOpen(true);
       return;
     }
+
 
     const promptEvent = getDeferredInstallPrompt();
     if (promptEvent) {
@@ -188,9 +336,19 @@ export function InstallAppButton({
       }
     }
 
+    if (platform === "ios" || isIosSafari()) {
+      markIosPrompted();
+      setIosPrompted(true);
+    }
+
     setOpen(true);
   }
 
+  // Already running inside the installed app — nothing to offer. Signed-in
+  // members who haven't installed still get the button (native app install).
+  if (standalone || isStandalone()) return null;
+
+  // Once installed, the browser and native app should not advertise installation again.
   if (installed) return null;
 
   const kind = detectBrowser(platform);
@@ -204,12 +362,22 @@ export function InstallAppButton({
         onClick={handleClick}
         aria-haspopup="dialog"
         className={cn(
-          "inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-lg transition hover:scale-[1.02] hover:brightness-110 active:scale-[0.97] active:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+          "inline-flex items-center justify-center gap-2 rounded-full bg-royal-deep px-5 py-2.5 text-sm font-bold text-ivory shadow-lg ring-1 ring-white/12 transition hover:scale-[1.02] hover:brightness-115 active:scale-[0.97] active:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-royal/50",
           className,
         )}
       >
         <img src={appIcon.url} alt="" className="h-5 w-5 rounded-md object-cover" /> {installed ? "Already installed" : label}
       </button>
+
+      {iosPrompted && (kind === "ios-safari" || kind === "ios-chrome" || kind === "ios-edge") && (
+        <button
+          type="button"
+          onClick={confirmInstalled}
+          className="mt-1 block w-full text-center text-xs font-semibold text-muted-foreground underline underline-offset-2"
+        >
+          Already added it? Switch to Open App
+        </button>
+      )}
 
       {open && typeof document !== "undefined" && createPortal(
         <div
@@ -297,6 +465,11 @@ export function InstallAppButton({
                     >
                       Copy link
                     </button>
+                    {kind.startsWith("ios-") && (
+                      <Button className="w-full gap-2" onClick={confirmInstalled}>
+                        <CheckCircle2 className="h-4 w-4" /> I added it to my Home Screen
+                      </Button>
+                    )}
                     <Button
                       className="w-full"
                       variant="secondary"

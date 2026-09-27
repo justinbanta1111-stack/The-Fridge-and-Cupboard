@@ -24,7 +24,6 @@ import { getUrgentItems } from "@/lib/scans.functions";
 import { suggestRecipes } from "@/lib/fridge.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
-import { dietLabel } from "@/lib/personalization";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/going-bad")({
@@ -65,7 +64,7 @@ const FRESHNESS_STYLE: Record<string, { label: string; className: string }> = {
 function GoingBadPage() {
   const [user, setUser] = useState<any>(undefined); // undefined = loading, null = signed out
   const [cooking, setCooking] = useState<null | { title: string; subtitle?: string; steps: string[] }>(null);
-  const { prefs } = useDietaryPrefs();
+  const { restrictions } = useDietaryPrefs();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
@@ -90,7 +89,7 @@ function GoingBadPage() {
         data: {
           items,
           cuisine: "Anything Goes — prioritize using these urgent items",
-          restrictions: prefs.map((p) => dietLabel(p)),
+          restrictions,
         },
       }),
     onError: (e: Error) => toast.error(e.message ?? "Couldn't fetch rescue recipes"),

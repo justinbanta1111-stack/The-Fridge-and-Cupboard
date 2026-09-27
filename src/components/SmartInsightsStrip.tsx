@@ -5,7 +5,7 @@ import { Brain, ArrowRight } from "lucide-react";
 export function SmartInsightsStrip() {
   return (
     <Card className="ring-paper mt-4 border-border/60 bg-gradient-to-br from-primary/10 via-card to-card p-4">
-      <Link to="/smart-insights" className="flex items-center gap-3">
+      <Link to="/smart-insights" className="press-lift -m-4 flex items-center gap-3 rounded-[inherit] p-4">
         <div className="rounded-xl bg-primary/15 p-2.5 text-primary">
           <Brain className="h-5 w-5" />
         </div>

@@ -17,7 +17,7 @@ Single-source checklist for shipping **The Fridge & Cupboard** to the Apple App 
 | `@capacitor/browser` (OAuth / external links) | ✅ |
 | `@capacitor/app` (deep links, back button) | ✅ |
 | `@capacitor/assets` (auto icon + splash generation) | ✅ |
-| `capacitor.config.ts` — bundle ID `com.TheFridgeandCupboard.app` | ✅ |
+| `capacitor.config.ts` — bundle ID `com.thefridgeandcupboard.app` | ✅ |
 | `resources/icon.png` (1024×1024) | ✅ |
 | `resources/splash.png` (2732×2732) | ✅ |
 | Native billing placeholder (`src/lib/native-billing.ts`) | ✅ |
@@ -92,7 +92,7 @@ After `bunx cap sync` and launching in simulator, confirm:
 ### Accounts (you must create these)
 - [ ] **Apple Developer Program** — $99/year — https://developer.apple.com/programs/
 - [ ] **Google Play Console** — $25 one-time — https://play.google.com/console
-- [ ] Register bundle ID `com.TheFridgeandCupboard.app` in Apple Developer portal
+- [ ] Register bundle ID `com.thefridgeandcupboard.app` in Apple Developer portal
 
 ### Required visual assets
 - [ ] App icon — ✅ source at `resources/icon.png` (auto-resized by capacitor-assets)

@@ -72,9 +72,35 @@ async function resolveVoiceId(gender: "male" | "female", apiKey: string): Promis
     "Saved Chef Super J ElevenLabs voice ID is missing. Set CHEF_VOICE_ID_MALE (or CHEF_SUPER_J_VOICE_ID / ELEVENLABS_CHEF_SUPER_J_VOICE_ID) or grant the ElevenLabs key voices_read permission so the saved voice can be found.",
   );
 }
-// eleven_flash_v2_5 = ultra-low-latency real-time model (~75ms). Uses the
-// same saved Chef Super J voice — just responds faster than multilingual_v2.
-const MODEL_ID_CHEF_SUPER_J = "eleven_flash_v2_5";
+// The multilingual model preserves the licensed Chef Super J voice while
+// producing smoother phrasing, steadier emphasis, and more natural breaths.
+const MODEL_ID_CHEF_SUPER_J = "eleven_multilingual_v2";
+
+type CachedSpeech = { audio: string; mime: "audio/mpeg"; cachedAt: number };
+const speechCache = new Map<string, CachedSpeech>();
+const SPEECH_CACHE_MAX = 40;
+const SPEECH_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+
+function getCachedSpeech(key: string): CachedSpeech | null {
+  const cached = speechCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.cachedAt > SPEECH_CACHE_TTL_MS) {
+    speechCache.delete(key);
+    return null;
+  }
+  speechCache.delete(key);
+  speechCache.set(key, cached);
+  return cached;
+}
+
+function setCachedSpeech(key: string, audio: string) {
+  speechCache.set(key, { audio, mime: "audio/mpeg", cachedAt: Date.now() });
+  while (speechCache.size > SPEECH_CACHE_MAX) {
+    const first = speechCache.keys().next().value;
+    if (!first) break;
+    speechCache.delete(first);
+  }
+}
 
 const Input = z.object({
   text: z.string().min(1).max(2000),
@@ -82,40 +108,38 @@ const Input = z.object({
   personality: z.enum(["calm", "energetic", "friendly", "chef"]).default("chef"),
 });
 
-function voiceSettings(personality: z.infer<typeof Input>["personality"]) {
-  // Warm, grounded, slightly deeper male voice — calm, mellow, real-human
-  // feel. Higher stability + lower style keeps it from getting animated or
-  // shouty; slower speed makes it sound thoughtful, not rushed.
-  // Warmer, slower, slightly deeper delivery — closer to a real person than
-  // a broadcaster. Higher stability keeps the pitch grounded; lower style
-  // removes the "announcer" edge.
-  // ~12% faster than the previous settings while keeping the same warm,
-  // grounded male voice. Slightly lower stability keeps it conversational
-  // at the higher speed without sounding rushed.
-  const settings = {
-    calm:      { speed: 0.90, stability: 0.90, style: 0.04 },
-    friendly:  { speed: 0.96, stability: 0.78, style: 0.14 },
-    energetic: { speed: 1.05, stability: 0.64, style: 0.28 },
-    chef:      { speed: 0.95, stability: 0.84, style: 0.12 },
-  }[personality];
+function voiceSettings(personality: z.infer<typeof Input>["personality"], text: string) {
+  // Warm, assured and conversational. Slightly higher stability keeps the
+  // delivery confident and connected; restrained style keeps it mellow.
+  void personality;
+  // Short standalone lines (the opening greeting, quick asides) are delivered
+  // faster by the model than long replies. Ease them down so the very first
+  // words match the calm pace used in the middle of a conversation.
+  const short = text.length <= 140;
+  const settings = { speed: short ? 0.92 : 1, stability: 0.56, style: 0.22 };
+
   return {
     ...settings,
-    similarity_boost: 0.92,
+    similarity_boost: 0.9,
+    // Speaker boost gives the voice presence and body so it doesn't sound thin.
     use_speaker_boost: true,
   };
 }
 
-// Strip markdown and shorten long pauses so responses feel snappier and
-// more conversational — no long gaps between sentences.
+// Strip markdown but KEEP natural sentence punctuation so Chef Super J
+// breathes between thoughts instead of rushing through the reply.
 function prepareForSpeech(text: string): string {
   return text
     .replace(/[*_#`]/g, "")
+    // Keep paragraph transitions audible instead of flattening every line.
+    .replace(/([^.!?])\s*\n{2,}\s*/g, "$1. ")
+    .replace(/\s*\n\s*/g, ", ")
     .replace(/\s+—\s+/g, ", ")
-    .replace(/\.{2,}/g, ",")
+    .replace(/\s*;\s*/g, "; ")
+    .replace(/\s*:\s*/g, ": ")
+    .replace(/\.{2,}/g, ".")
     .replace(/,\s*,+/g, ",")
-    // Shorten sentence-ending pauses: ". " → ", " keeps a brief beat but
-    // avoids the long full-stop pause ElevenLabs otherwise inserts.
-    .replace(/([.!?])\s+(?=[A-Z])/g, "$1 ")
+    .replace(/([.!?])(?=[A-Z])/g, "$1 ")
     .replace(/\s+([,.!?])/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
@@ -134,7 +158,8 @@ export const synthesizeChefVoice = createServerFn({ method: "POST" })
 
     let resolved: { voiceId: string; source: string };
     try {
-      resolved = await resolveVoiceId(data.gender, apiKey);
+      // Single licensed custom voice for the whole app — never a picked alternate.
+      resolved = await resolveVoiceId("male", apiKey);
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       console.error(error);
@@ -145,22 +170,44 @@ export const synthesizeChefVoice = createServerFn({ method: "POST" })
       voiceId: compactVoiceId(resolved.voiceId),
       source: resolved.source,
     });
-    const res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${resolved.voiceId}?output_format=mp3_22050_32`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: prepareForSpeech(data.text),
-          model_id: MODEL_ID_CHEF_SUPER_J,
-          voice_settings: voiceSettings(data.personality),
-          optimize_streaming_latency: 3,
-        }),
+    const preparedText = prepareForSpeech(data.text);
+    const cacheKey = [MODEL_ID_CHEF_SUPER_J, resolved.voiceId, data.personality, preparedText].join("|");
+    const cached = getCachedSpeech(cacheKey);
+    if (cached) {
+      console.info("VOICE_API_SUCCESS", {
+        action: "elevenlabs_text_to_speech_cache",
+        voiceId: compactVoiceId(resolved.voiceId),
+        source: resolved.source,
+      });
+      return { audio: cached.audio, mime: cached.mime, error: null };
+    }
+
+    const requestUrl = `https://api.elevenlabs.io/v1/text-to-speech/${resolved.voiceId}?output_format=mp3_22050_32`;
+    const requestInit: RequestInit = {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        text: preparedText,
+        model_id: MODEL_ID_CHEF_SUPER_J,
+        voice_settings: voiceSettings(data.personality, preparedText),
+        // Lower latency optimization keeps prosody natural and consistent.
+        optimize_streaming_latency: 2,
+      }),
+    };
+
+    let res: Response;
+    try {
+      // Let the provider finish one request. Aborting and immediately retrying
+      // can leave two paid synthesis jobs running for the same utterance.
+      res = await fetch(requestUrl, requestInit);
+    } catch (err) {
+      const error = `Chef Super J text-to-speech request failed: ${err instanceof Error ? err.message : String(err)}`;
+      console.error(error);
+      return { audio: null, mime: "audio/mpeg", error };
+    }
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
@@ -176,5 +223,6 @@ export const synthesizeChefVoice = createServerFn({ method: "POST" })
 
     const buf = await res.arrayBuffer();
     const base64 = Buffer.from(buf).toString("base64");
+    setCachedSpeech(cacheKey, base64);
     return { audio: base64, mime: "audio/mpeg", error: null };
   });

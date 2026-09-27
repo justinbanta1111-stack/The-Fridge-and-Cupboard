@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Trash2, User as UserIcon, LogOut, Shield, FileText } from "lucide-react";
+import { Loader2, Trash2, User as UserIcon, LogOut, Shield, FileText, CreditCard, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -21,6 +21,13 @@ import { SiteNav } from "@/components/SiteNav";
 import { VoiceAssistantSettings } from "@/components/VoiceAssistantSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteMyAccount } from "@/lib/account.functions";
+import { createPortalSession } from "@/utils/payments.functions";
+import { useSubscription } from "@/hooks/use-subscription";
+import { SubscriptionStatusCard } from "@/components/SubscriptionStatusCard";
+import { YourNameCard } from "@/components/YourNameCard";
+import { ProfilePhotoCard } from "@/components/ProfilePhotoCard";
+import { getStripeEnvironment } from "@/lib/stripe";
+import { isNativeApp } from "@/lib/native-runtime";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/account")({
@@ -37,6 +44,12 @@ export const Route = createFileRoute("/account")({
 function AccountPage() {
   const navigate = useNavigate();
   const deleteFn = useServerFn(deleteMyAccount);
+  const portalFn = useServerFn(createPortalSession);
+  const subscription = useSubscription();
+  const [portalBusy, setPortalBusy] = useState(false);
+  // The installed app never links out to an outside payment page.
+  const [native, setNative] = useState(false);
+  useEffect(() => setNative(isNativeApp()), []);
   const [user, setUser] = useState<{ id: string; email?: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmText, setConfirmText] = useState("");
@@ -53,10 +66,44 @@ function AccountPage() {
     });
   }, [navigate]);
 
+  // Coming back from the billing portal: refresh so the cancellation
+  // confirmation (and end date) shows up right away.
+  const refetchSubscription = subscription.refetch;
+  useEffect(() => {
+    const onFocus = () => refetchSubscription();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [refetchSubscription]);
+
   async function handleSignOut() {
     await supabase.auth.signOut();
     toast.success("Signed out");
     navigate({ to: "/auth", replace: true });
+  }
+
+  async function handleManageBilling() {
+    setPortalBusy(true);
+    try {
+      let environment: "sandbox" | "live";
+      try {
+        environment = getStripeEnvironment();
+      } catch {
+        environment = "live";
+      }
+      const result: any = await portalFn({
+        data: { environment, returnUrl: `${window.location.origin}/account` },
+      });
+      if (result && "error" in result) throw new Error(result.error);
+      window.open(result.url, "_blank", "noopener,noreferrer");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Could not open billing. Please try again.");
+    } finally {
+      setPortalBusy(false);
+    }
   }
 
   async function handleDelete() {
@@ -108,6 +155,108 @@ function AccountPage() {
             </Button>
           </div>
         </Card>
+
+        <YourNameCard className="mt-4" />
+        <ProfilePhotoCard className="mt-4" />
+
+        {subscription.isActive && !native && (
+          <Card className="mt-4 p-5">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-foreground">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold">Subscription</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {subscription.cancelAtPeriodEnd
+                    ? "Your plan ends"
+                    : subscription.status === "trialing"
+                      ? "Free trial — renews"
+                      : "Renews"}
+                  {subscription.currentPeriodEnd
+                    ? ` on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
+                    : ""}
+                  . Update your payment method, switch plans, view invoices, or cancel anytime.
+                </p>
+              </div>
+            </div>
+            {subscription.cancelAtPeriodEnd && (
+              <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+                <div className="font-semibold">Cancellation confirmed</div>
+                <ul className="mt-2 space-y-1 text-muted-foreground">
+                  <li>
+                    • You keep full access until{" "}
+                    <span className="font-medium text-foreground">
+                      {subscription.currentPeriodEnd
+                        ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
+                        : "the end of your billing period"}
+                    </span>
+                    .
+                  </li>
+                  <li>• You won't be charged again.</li>
+                  <li>• After that date your account switches to the free plan.</li>
+                  <li>• Your scans, saved recipes, and history stay in your account.</li>
+                  <li>• You can resubscribe anytime — nothing is deleted.</li>
+                </ul>
+              </div>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button onClick={handleManageBilling} disabled={portalBusy} className="gap-2">
+                {portalBusy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="h-4 w-4" />
+                )}
+                Manage billing
+              </Button>
+              {!subscription.cancelAtPeriodEnd && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline">Cancel subscription</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Here's what happens when you cancel</AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-2 text-left">
+                          <p>
+                            You'll finish cancelling in the secure billing portal. Once you confirm
+                            there:
+                          </p>
+                          <ul className="space-y-1">
+                            <li>
+                              • You keep full access until{" "}
+                              {subscription.currentPeriodEnd
+                                ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
+                                : "the end of your current billing period"}
+                              .
+                            </li>
+                            <li>• No further charges — your plan simply won't renew.</li>
+                            <li>• After that date you move to the free plan.</li>
+                            <li>• Your scans, saved recipes, and history are kept.</li>
+                            <li>• You can resubscribe anytime and pick up where you left off.</li>
+                          </ul>
+                          <p>
+                            Come back to this page after cancelling and you'll see your confirmed
+                            end date here.
+                          </p>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep my plan</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleManageBilling}>
+                        Continue to cancel
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {!native && <SubscriptionStatusCard className="mt-4" />}
 
         <Card className="mt-4 p-5">
           <div className="text-sm font-medium">Legal</div>

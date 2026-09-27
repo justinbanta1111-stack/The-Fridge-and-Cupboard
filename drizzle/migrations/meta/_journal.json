@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789838669164,
+      "tag": "0000_create_signup_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789839579333,
+      "tag": "0001_create_confirmation_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789839599243,
+      "tag": "0002_schedule_confirmation_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789839704816,
+      "tag": "0003_create_feedback_requests_and_activity_view",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789943364160,
+      "tag": "0004_expand_food_restriction_profile",
+      "breakpoints": true
+    }
+  ]
+}

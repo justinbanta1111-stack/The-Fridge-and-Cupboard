@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { CELEBRATION_RULES, seasonalOccasionHint } from "@/lib/celebrations-prompt";
+import { DRINK_PAIRING_RULES } from "@/lib/drink-pairing-prompt";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { HUMOR_RULES } from "@/lib/chef-humor-prompt";
 
 const SurpriseInput = z.object({
   diet: z.string().optional(),
@@ -73,7 +76,7 @@ export const surpriseMeRecipe = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<RecipeIdea> => {
     const diet = data?.diet ? ` Dietary note: ${data.diet}.` : "";
     const mood = data?.mood ? ` Mood: ${data.mood}.` : "";
-    const system = "You are Chef Super J — 30 years pro kitchens, brain tumor survivor, Army Reserve, firefighter. Warm, encouraging, practical. You help people use what they already have. Always respond with VALID JSON only. No markdown.";
+    const system = "You are Chef Super J — 30 years pro kitchens, brain tumor survivor, Army Reserve, firefighter. Warm, encouraging, practical. You help people use what they already have. Always respond with VALID JSON only. No markdown." + "\n" + HUMOR_RULES.join("\n");
     const user = `Suggest ONE surprise recipe idea a typical home cook can make right now from common pantry/fridge items. Keep it doable in 30 minutes.${diet}${mood}
 Respond as JSON: {"title": string, "why": string (1 short sentence), "steps": string[] (4-6 short steps), "time_minutes": number}.`;
 
@@ -94,7 +97,7 @@ export const pantryTreasureHunt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => TreasureInput.parse(input))
   .handler(async ({ data }): Promise<{ finds: TreasureFind[] }> => {
-    const system = "You are Chef Super J. You find hidden gems in ordinary pantries — surprising flavor combos and dishes people overlook. Warm, fun, practical. Always respond with VALID JSON only. No markdown.";
+    const system = "You are Chef Super J. You find hidden gems in ordinary pantries — surprising flavor combos and dishes people overlook. Warm, fun, practical. Always respond with VALID JSON only. No markdown." + "\n" + HUMOR_RULES.join("\n");
     const user = `Here are items in the user's kitchen: ${data.items.slice(0, 40).join(", ")}.
 Find 3 "treasure" combos — unexpected pairings or overlooked dishes hiding in this pantry.
 Respond as JSON: {"finds": [{"combo": string[] (2-4 items from the list), "dish": string, "twist": string (one sentence — why it's special)}]}.`;
@@ -122,7 +125,7 @@ export const ingredientSubstitute = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SubInput.parse(input))
   .handler(async ({ data }): Promise<{ subs: { name: string; ratio: string; note: string }[] }> => {
-    const system = "You are Chef Super J. You suggest practical ingredient substitutions a home cook can pull off with common pantry items. Always respond with VALID JSON only. No markdown.";
+    const system = "You are Chef Super J. You suggest practical ingredient substitutions a home cook can pull off with common pantry items. Always respond with VALID JSON only. No markdown." + "\n" + HUMOR_RULES.join("\n");
     const ctx = data.context ? ` They're making: ${data.context}.` : "";
     const user = `The cook is out of: ${data.ingredient}.${ctx}
 Give 3 substitutions ranked best to acceptable.
@@ -186,7 +189,11 @@ Rules:
 - If the question is off-topic (politics, medical advice, personal life), kindly say it's outside the kitchen and offer to help with food instead.
 - Keep answers practical and actionable. 2-5 short paragraphs max. Use plain text, no markdown headers.
 - When safety matters (raw meat, cross-contamination, hot oil), mention it.
-- Don't pretend to be an AI or apologize. You're Chef Super J.`;
+- Don't pretend to be an AI or apologize. You're Chef Super J.
+
+${CELEBRATION_RULES.join("\n")}
+${DRINK_PAIRING_RULES.join("\n")}
+${seasonalOccasionHint()}`;
 
     const answer = await callGatewayText(system, data.question);
     if (!answer) throw new Error("Chef didn't have an answer this time. Try rephrasing.");

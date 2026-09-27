@@ -19,6 +19,11 @@ export type DietId =
   | "no-pork"
   | "nut-free"
   | "shellfish-free"
+  | "no-citric-acid"
+  | "gerd-friendly"
+  | "hashimotos"
+  | "soy-free"
+  | "low-iodine"
   | "family-friendly"
   | "kid-friendly"
   | "bodybuilder";
@@ -33,8 +38,13 @@ export const DIET_OPTIONS: { id: DietId; label: string; group: "fasting" | "life
   { id: "dairy-free", label: "Dairy-free", group: "restriction" },
   { id: "nut-free", label: "Nut-free", group: "restriction" },
   { id: "shellfish-free", label: "Shellfish-free", group: "restriction" },
+  { id: "no-citric-acid", label: "No Citric Acid", group: "restriction", hint: "No citrus, citrus juice/zest, or E330" },
+  { id: "gerd-friendly", label: "GERD-Friendly", group: "health", hint: "Avoids common acid reflux trigger foods" },
+  { id: "hashimotos", label: "Hashimoto's", group: "health", hint: "Personalized to your restrictions — we ask about gluten, dairy, soy & iodine instead of assuming" },
   { id: "no-beef", label: "No beef", group: "restriction" },
   { id: "no-pork", label: "No pork", group: "restriction" },
+  { id: "soy-free", label: "Soy-free", group: "restriction" },
+  { id: "low-iodine", label: "Low-iodine", group: "restriction", hint: "Only if your doctor advised it" },
   { id: "diabetic", label: "Diabetic-friendly", group: "health" },
   { id: "low-sugar", label: "Low sugar", group: "health" },
   { id: "low-carb", label: "Low carb", group: "health" },
@@ -96,6 +106,7 @@ export const TIPS_TAGGED: TipTag[] = [
   { text: "Diabetic-friendly: pair carbs with protein + fat to flatten the blood sugar curve.", ingredients: [], diets: ["diabetic","low-sugar"] },
   { text: "Cashew cream = the dairy-free hack that fools everyone in pasta and soups.", ingredients: [], diets: ["dairy-free","vegan","lenten","orthodox-fasting"] },
   { text: "Kid trick: name the dish after them. 'Mia's Magic Pasta' eats faster than 'dinner.'", ingredients: [], diets: ["kid-friendly","family-friendly"] },
+  { text: "Hashimoto's: there's no single 'thyroid diet' — selenium-rich foods (Brazil nuts, eggs, fish) are commonly enjoyed, but follow your own restrictions and your doctor's guidance.", ingredients: ["egg","fish","salmon","tuna"], diets: ["hashimotos"] },
 ];
 
 // Lightweight ingredient extraction from scanned item names.
@@ -154,4 +165,20 @@ export function pickPersonalizedTip(itemNames: string[], diets: DietId[]): TipTa
 
 export function dietLabel(id: DietId): string {
   return DIET_OPTIONS.find((d) => d.id === id)?.label ?? id;
+}
+
+// Build the restriction list sent to the chef AI. Hashimoto's gets a
+// descriptive label plus the user's own notes (gluten/dairy/soy/iodine and
+// any doctor guidance) so nothing is eliminated unless the user said so.
+export function dietLabels(prefs: DietId[], notes?: string): string[] {
+  const labels = prefs.map((p) =>
+    p === "hashimotos"
+      ? "Hashimoto's thyroid support (honor only the restrictions the user listed — do NOT automatically remove gluten, dairy, soy, or iodine)"
+      : dietLabel(p),
+  );
+  const extra = notes?.trim();
+  if (prefs.includes("hashimotos") && extra) {
+    labels.push(`Hashimoto's personal restrictions & doctor's guidance: ${extra}`);
+  }
+  return labels;
 }

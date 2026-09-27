@@ -26,6 +26,7 @@ const Input = z.object({
   haveIngredients: z.array(z.string()).default([]),
   expiringSoon: z.array(z.string()).default([]),
   leftovers: z.array(z.string()).default([]),
+  restrictions: z.array(z.string().trim().min(1).max(160)).max(50).default([]),
   swapSlot: z.enum(["breakfast", "lunch", "dinner", "snack"]).optional(),
   swapAway: z.string().optional(),
   familyCount: z.number().int().min(1).max(12).default(1),
@@ -108,6 +109,7 @@ Time limit applies to EACH meal:
 If "swapSlot" is set, return only that one meal in meals[] (a replacement), different from "swapAway". Otherwise return all four (breakfast, lunch, dinner, snack).
 
 Avoid history.avoid foods. Favor history.loved when it fits the goal.
+Treat restrictions as mandatory. Allergies and CANNOT EAT entries are absolute exclusions. Accommodate health and fasting requirements without presenting medical advice.
 
 Return STRICT JSON:
 {

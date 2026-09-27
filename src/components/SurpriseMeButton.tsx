@@ -6,12 +6,29 @@ import { surpriseMeRecipe } from "@/lib/chef-ideas.functions";
 import { ChefAvatar } from "@/components/ChefAvatar";
 import { toast } from "sonner";
 
+const TEASERS = [
+  "Oh, I've got one…",
+  "You're not going to expect this…",
+  "Ha — this one's good…",
+  "Okay, trust me on this one…",
+  "Hang on, plating it up…",
+];
+
 export function SurpriseMeButton({ diet }: { diet?: string }) {
   const [open, setOpen] = useState(false);
+  const [teaser, setTeaser] = useState(TEASERS[0]);
+  const [revealed, setRevealed] = useState(false);
   const fn = useServerFn(surpriseMeRecipe);
   const m = useMutation({
-    mutationFn: () => fn({ data: { diet } }),
-    onSuccess: () => setOpen(true),
+    mutationFn: () => {
+      setTeaser(TEASERS[Math.floor(Math.random() * TEASERS.length)]);
+      setRevealed(false);
+      return fn({ data: { diet } });
+    },
+    onSuccess: () => {
+      setOpen(true);
+      window.setTimeout(() => setRevealed(true), 900);
+    },
     onError: (e: Error) => toast.error(e.message || "Chef couldn't think of one. Try again."),
   });
 
@@ -46,7 +63,13 @@ export function SurpriseMeButton({ diet }: { diet?: string }) {
             >
               <X className="h-4 w-4" />
             </button>
-            <div className="bg-gradient-to-br from-primary/15 via-accent/5 to-background p-5">
+            {!revealed && (
+              <div className="grid place-items-center gap-3 bg-gradient-to-br from-primary/20 via-accent/10 to-background p-10 text-center">
+                <ChefAvatar className="h-14 w-14 animate-pulse ring-2 ring-primary/40" />
+                <p className="font-display text-xl leading-tight text-foreground">{teaser}</p>
+              </div>
+            )}
+            <div className={revealed ? "bg-gradient-to-br from-primary/15 via-accent/5 to-background p-5" : "hidden"}>
               <div className="flex items-center gap-3">
                 <ChefAvatar className="h-12 w-12 ring-2 ring-primary/30" />
                 <div>
@@ -59,7 +82,7 @@ export function SurpriseMeButton({ diet }: { diet?: string }) {
                 <Clock className="h-3.5 w-3.5" /> About {m.data.time_minutes} min
               </div>
             </div>
-            <ol className="space-y-2 p-5 pt-3 text-sm">
+            <ol className={revealed ? "space-y-2 p-5 pt-3 text-sm" : "hidden"}>
               {m.data.steps.map((s, i) => (
                 <li key={i} className="flex gap-2">
                   <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">

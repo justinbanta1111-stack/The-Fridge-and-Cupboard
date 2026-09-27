@@ -4,16 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   VOICE_PREF_EVENT,
   VOICE_CHAT_PREF_EVENT,
-  VOICE_STYLE_PREF_EVENT,
   getVoiceEnabled,
   isVoiceSupported,
   setVoiceEnabled,
@@ -22,12 +14,6 @@ import {
   setVoiceChatEnabled,
   getHandsFreeEnabled,
   setHandsFreeEnabled,
-  getVoiceGender,
-  setVoiceGender,
-  getVoicePersonality,
-  setVoicePersonality,
-  type VoiceGender,
-  type VoicePersonality,
 } from "@/lib/voice-assistant";
 import { isRecognitionSupported } from "@/lib/voice-recognition";
 
@@ -39,8 +25,6 @@ export function VoiceAssistantSettings() {
   const [handsFree, setHandsFree] = useState(true);
   const [supported, setSupported] = useState(true);
   const [recSupported, setRecSupported] = useState(true);
-  const [voiceGender, setVoiceGenderState] = useState<VoiceGender>("male");
-  const [personality, setPersonalityState] = useState<VoicePersonality>("chef");
 
   useEffect(() => {
     setSupported(isVoiceSupported());
@@ -48,22 +32,14 @@ export function VoiceAssistantSettings() {
     setEnabled(getVoiceEnabled());
     setChatEnabled(getVoiceChatEnabled());
     setHandsFree(getHandsFreeEnabled());
-    setVoiceGenderState(getVoiceGender());
-    setPersonalityState(getVoicePersonality());
     const onChange = (e: Event) => setEnabled((e as CustomEvent).detail);
     const onChatChange = (e: Event) => setChatEnabled((e as CustomEvent).detail);
-    const onStyleChange = () => {
-      setVoiceGenderState(getVoiceGender());
-      setPersonalityState(getVoicePersonality());
-    };
     window.addEventListener(VOICE_PREF_EVENT, onChange as EventListener);
     window.addEventListener(VOICE_CHAT_PREF_EVENT, onChatChange as EventListener);
-    window.addEventListener(VOICE_STYLE_PREF_EVENT, onStyleChange as EventListener);
     return () => {
       window.removeEventListener(VOICE_PREF_EVENT, onChange as EventListener);
       window.removeEventListener(VOICE_CHAT_PREF_EVENT, onChatChange as EventListener);
-      window.removeEventListener(VOICE_STYLE_PREF_EVENT, onStyleChange as EventListener);
-    };
+      };
   }, []);
 
   function toggle(next: boolean) {
@@ -78,16 +54,6 @@ export function VoiceAssistantSettings() {
   function toggleHandsFree(next: boolean) {
     setHandsFree(next);
     setHandsFreeEnabled(next);
-  }
-  function chooseGender(next: VoiceGender) {
-    setVoiceGenderState(next);
-    setVoiceGender(next);
-    speakNow(SAMPLE);
-  }
-  function choosePersonality(next: VoicePersonality) {
-    setPersonalityState(next);
-    setVoicePersonality(next);
-    speakNow(SAMPLE);
   }
 
   return (
@@ -132,37 +98,13 @@ export function VoiceAssistantSettings() {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-md border border-border bg-secondary/30 p-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <div className="text-sm font-semibold">Voice</div>
-          <Select value={voiceGender} onValueChange={(value) => chooseGender(value as VoiceGender)}>
-            <SelectTrigger aria-label="Choose Chef voice">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="male">Male</SelectItem>
-              <SelectItem value="female">Female</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <div className="text-sm font-semibold">Personality</div>
-          <Select
-            value={personality}
-            onValueChange={(value) => choosePersonality(value as VoicePersonality)}
-          >
-            <SelectTrigger aria-label="Choose Chef personality">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="chef">Chef-style</SelectItem>
-              <SelectItem value="friendly">Friendly</SelectItem>
-              <SelectItem value="energetic">Energetic</SelectItem>
-              <SelectItem value="calm">Calm</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="rounded-md border border-border bg-secondary/30 p-3">
+        <div className="text-sm font-semibold">Voice</div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Chef Super J's custom voice is used everywhere in the app.
+        </p>
       </div>
+
 
       <div className="h-px bg-border" />
 

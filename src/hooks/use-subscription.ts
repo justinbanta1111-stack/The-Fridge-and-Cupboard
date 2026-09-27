@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getStripeEnvironment } from "@/lib/stripe";
+import { everythingUnlockedHere } from "@/lib/store-purchases";
 
 export type SubscriptionTier = "free" | "standard" | "premium";
 
@@ -15,6 +16,9 @@ export type SubscriptionState = {
   status: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  isTrialing: boolean;
+  /** Whole days left in a trial (or in the paid period), null when unknown. */
+  daysLeft: number | null;
   refetch: () => void;
 };
 
@@ -88,7 +92,10 @@ export function useSubscription(): SubscriptionState {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED" && event !== "INITIAL_SESSION") return;
       const uid = session?.user?.id ?? null;
       setUserId(uid);
-      load(uid);
+      // NEVER call other supabase methods synchronously inside this callback —
+      // it holds the auth lock, and a query here deadlocks getSession() for
+      // every other caller (server-fn bearer attacher, voice pipeline, etc.).
+      setTimeout(() => load(uid), 0);
     });
     return () => {
       mounted = false;
@@ -100,7 +107,7 @@ export function useSubscription(): SubscriptionState {
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
-      .channel(`sub-${userId}`)
+      .channel(`sub-${userId}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "subscriptions", filter: `user_id=eq.${userId}` },
@@ -114,8 +121,19 @@ export function useSubscription(): SubscriptionState {
 
   const status = row?.status ?? null;
   const periodEnd = row?.current_period_end ?? null;
-  const active = isStatusActive(status, periodEnd);
-  const tier: SubscriptionTier = active ? classify(row?.price_id ?? null) : "free";
+  const rowActive = isStatusActive(status, periodEnd);
+
+  // Inside the installed app, when store billing isn't wired there is no way
+  // to buy anything, so nothing is locked and no prices are shown.
+  const [openEverything, setOpenEverything] = useState(false);
+  useEffect(() => setOpenEverything(everythingUnlockedHere()), []);
+
+  const active = rowActive || openEverything;
+  const tier: SubscriptionTier = rowActive
+    ? classify(row?.price_id ?? null)
+    : openEverything
+      ? "premium"
+      : "free";
 
   return {
     loading,
@@ -128,6 +146,10 @@ export function useSubscription(): SubscriptionState {
     status,
     currentPeriodEnd: periodEnd,
     cancelAtPeriodEnd: !!row?.cancel_at_period_end,
+    isTrialing: status === "trialing" && active,
+    daysLeft: periodEnd
+      ? Math.max(0, Math.ceil((new Date(periodEnd).getTime() - Date.now()) / 86_400_000))
+      : null,
     refetch,
   };
 }

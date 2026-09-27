@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
+import { DISHES, INGREDIENTS, QUESTIONS, CUISINES, LEFTOVERS, DIETS } from "@/lib/seo/content";
 
 const BASE_URL = "https://thefridgeandcupboard.com";
 
@@ -9,11 +10,12 @@ interface SitemapEntry {
   priority?: string;
 }
 
-const entries: SitemapEntry[] = [
+const staticEntries: SitemapEntry[] = [
   { path: "/", changefreq: "weekly", priority: "1.0" },
   { path: "/about-chef", changefreq: "monthly", priority: "0.7" },
   { path: "/features", changefreq: "monthly", priority: "0.7" },
   { path: "/scan", changefreq: "monthly", priority: "0.8" },
+  { path: "/cupboard", changefreq: "monthly", priority: "0.8" },
   { path: "/rescue", changefreq: "monthly", priority: "0.7" },
   { path: "/savings", changefreq: "monthly", priority: "0.7" },
   { path: "/meal-plan", changefreq: "monthly", priority: "0.7" },
@@ -35,8 +37,31 @@ const entries: SitemapEntry[] = [
   { path: "/privacy", changefreq: "yearly", priority: "0.3" },
   { path: "/terms", changefreq: "yearly", priority: "0.3" },
   { path: "/subscription-terms", changefreq: "yearly", priority: "0.3" },
-  { path: "/auth", changefreq: "yearly", priority: "0.3" },
+  // Public cooking library
+  { path: "/search", changefreq: "weekly", priority: "0.8" },
+  { path: "/kitchen-guide", changefreq: "weekly", priority: "0.9" },
+  { path: "/how-to-make", changefreq: "weekly", priority: "0.9" },
+  { path: "/cooking-questions", changefreq: "weekly", priority: "0.9" },
+  { path: "/ingredients", changefreq: "weekly", priority: "0.8" },
+  { path: "/leftover-ideas", changefreq: "weekly", priority: "0.8" },
+  { path: "/cuisines", changefreq: "monthly", priority: "0.8" },
+  { path: "/diets", changefreq: "monthly", priority: "0.8" },
 ];
+
+const contentEntries: SitemapEntry[] = [
+  ...DISHES.map((d) => ({ path: `/how-to-make/${d.slug}`, changefreq: "monthly" as const, priority: "0.8" })),
+  ...QUESTIONS.map((q) => ({
+    path: `/cooking-questions/${q.slug}`,
+    changefreq: "monthly" as const,
+    priority: "0.8",
+  })),
+  ...INGREDIENTS.map((i) => ({ path: `/ingredients/${i.slug}`, changefreq: "monthly" as const, priority: "0.7" })),
+  ...LEFTOVERS.map((l) => ({ path: `/leftover-ideas/${l.slug}`, changefreq: "monthly" as const, priority: "0.7" })),
+  ...CUISINES.map((c) => ({ path: `/cuisines/${c.slug}`, changefreq: "monthly" as const, priority: "0.7" })),
+  ...DIETS.map((d) => ({ path: `/diets/${d.slug}`, changefreq: "monthly" as const, priority: "0.7" })),
+];
+
+const entries: SitemapEntry[] = [...staticEntries, ...contentEntries];
 
 export const Route = createFileRoute("/sitemap.xml")({
   server: {

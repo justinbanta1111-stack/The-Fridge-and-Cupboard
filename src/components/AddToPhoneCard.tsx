@@ -20,7 +20,12 @@ export function AddToPhoneCard({ className }: { className?: string }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; platform?: string } }).Capacitor;
+    const native = Boolean(
+      cap && (cap.isNativePlatform?.() || cap.platform === "ios" || cap.platform === "android"),
+    );
     const standalone =
+      native ||
       window.matchMedia?.("(display-mode: standalone)").matches ||
       // @ts-expect-error iOS Safari
       window.navigator.standalone === true;

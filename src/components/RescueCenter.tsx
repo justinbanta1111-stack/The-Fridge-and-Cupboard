@@ -20,7 +20,7 @@ import {
 import { getRescueDashboard, type RescueItem } from "@/lib/scans.functions";
 import { suggestRecipes } from "@/lib/fridge.functions";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
-import { dietLabel } from "@/lib/personalization";
+import { dietLabels } from "@/lib/personalization";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -34,7 +34,7 @@ function dollars(cents: number) {
 export function RescueCenter() {
   const [signedIn, setSignedIn] = useState(false);
   const navigate = useNavigate();
-  const { prefs } = useDietaryPrefs();
+  const { prefs, notes } = useDietaryPrefs();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session?.user));
@@ -58,7 +58,7 @@ export function RescueCenter() {
         data: {
           items,
           cuisine: "Anything Goes",
-          restrictions: prefs.map((p) => dietLabel(p)),
+          restrictions: dietLabels(prefs, notes),
         },
       }),
     onSuccess: (data) => {

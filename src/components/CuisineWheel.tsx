@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CUISINES } from "@/lib/cuisines";
 import { surpriseMeRecipe } from "@/lib/chef-ideas.functions";
+import { ensureGuestSession } from "@/lib/guest";
 import { toast } from "sonner";
 
 export function CuisineWheel() {
+
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -19,6 +21,16 @@ export function CuisineWheel() {
 
   async function spin() {
     if (spinning) return;
+
+    // Free to try: create a guest session if needed so the backend call works.
+    try {
+      await ensureGuestSession();
+    } catch {
+      toast.error("Couldn't start a guest session. Please try again.");
+      return;
+    }
+
+
     setSpinning(true);
     setMeal(null);
     setSelected(null);

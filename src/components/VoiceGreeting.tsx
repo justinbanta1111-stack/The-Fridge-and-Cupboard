@@ -3,26 +3,63 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   FRIDGE_INTRO_VOICE_TAP_EVENT,
   getVoiceEnabled,
+  setVoiceEnabled,
+  VOICE_PREF_EVENT,
   isMobileVoiceEnvironment,
   markGreeted,
+  hasGreetedThisSession,
   stopAllAudio,
+  duckVoiceOutput,
   unlockVoiceAudio,
   getOutputAudio,
   getVoicePersonality,
   markVoiceAudioUnlocked,
+  isVoiceAudioUnlocked,
+  registerVoiceAudio,
+  unregisterVoiceAudio,
+  claimVoicePlayback,
+  isVoicePlaybackClaimCurrent,
+  releaseVoicePlaybackClaim,
+  waitForVoiceAudioReady,
+  getVoiceRate,
+  getVoicePauseMs,
 } from "@/lib/voice-assistant";
+
 import { synthesizeChefVoice } from "@/lib/tts.functions";
-import { playFridgeOpen } from "@/lib/sound-effects";
+
 import {
   VoiceRecognizer,
   isRecognitionSupported,
   requestMicPermission,
 } from "@/lib/voice-recognition";
-import { chatWithChef } from "@/lib/voice-chat.functions";
+import { chatWithChef, chatWithChefGuest } from "@/lib/voice-chat.functions";
+import { getScanContext } from "@/lib/scan-context";
+import { startVoicePrint, type VoicePrintResult } from "@/lib/voice-print";
+import {
+  hasSpeakerConsent,
+  listSpeakerProfiles,
+  matchSpeaker,
+  findSpeakerBySpokenName,
+  getActiveSpeakerId,
+  setActiveSpeaker,
+  getSpeakerProfile,
+  addSpeakerSample,
+} from "@/lib/speaker-profiles";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveUserName } from "@/lib/user-name";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
-import { dietLabel } from "@/lib/personalization";
+import { useLanguage } from "@/lib/i18n/context";
 import { emitVoiceMeter } from "@/components/VoiceStatusMeter";
+import { recordVoiceHealth } from "@/lib/voice-health";
+import { releaseAudioGate } from "@/lib/audio-gate";
+import { armAudioGate, disarmAudioGate } from "@/lib/audio-gate";
+import { resetMicActivity } from "@/lib/mic-activity";
+import { getVoiceSessionOwner, VOICE_SESSION_EVENT } from "@/lib/voice-session";
+import { noteInterruption } from "@/lib/interruption-politeness";
+import { isNativeApp } from "@/lib/native-runtime";
+import { hasConsent } from "@/lib/permissions";
+
+import bundledGreetingAudioUrl from "@/assets/chef-welcome.mp3?url";
 
 /**
  * Hands-free voice runtime.
@@ -30,12 +67,29 @@ import { emitVoiceMeter } from "@/components/VoiceStatusMeter";
  *   Mobile:  first user tap  →  unlock audio (sync)  →  welcome  →  mic prompt  →  loop
  *   Desktop: mount            →  request mic         →  welcome  →  loop
  */
-const GREETING_TEXT =
-  "Welcome to The Fridge & Cupboard. What can we cook today?";
-// Cached data-URL of the ElevenLabs Chef Super J greeting, preloaded on mount
-// so the first user tap can call audio.play() synchronously (required on
-// Android Chrome / Samsung Internet). Falls back to on-demand fetch if the
-// preload hasn't finished by the time the user taps.
+const GREETING_TEXT = "Welcome to The Fridge & Cupboard.";
+
+/**
+ * Said instead of the welcome line whenever the voice loop starts again later
+ * in the same session. Kept short, warm and varied so it never sounds canned.
+ */
+const RETURN_LINES = [
+  "Just let me know what you'd like to do.",
+  "Let me know what questions you have.",
+  "What would you like to do next?",
+  "I'm ready whenever you are.",
+  "Tell me what you're in the mood for.",
+  "I'm here — what sounds good?",
+];
+let lastReturnLine = -1;
+function pickReturnLine(): string {
+  let index = Math.floor(Math.random() * RETURN_LINES.length);
+  if (index === lastReturnLine) index = (index + 1) % RETURN_LINES.length;
+  lastReturnLine = index;
+  return RETURN_LINES[index] ?? RETURN_LINES[0]!;
+}
+// The exact welcome line is synthesized with the ElevenLabs Chef voice. The
+// bundled clip stays as an offline fallback if synthesis ever fails.
 let greetingAudioUrl: string | null = null;
 let greetingAudioBase64: string | null = null;
 let greetingPreloadPromise: Promise<string | null> | null = null;
@@ -75,7 +129,11 @@ let greetingAudioUrlCreated: "yes" | "no" = "no";
 function exactError(err: unknown): string {
   if (!err) return "unknown error";
   if (err instanceof Error) return err.message;
-  try { return JSON.stringify(err); } catch { return String(err); }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
 }
 
 function mobileDeviceLabel(): "iPhone/iPad" | "Android" | "other mobile" | "desktop" {
@@ -86,43 +144,83 @@ function mobileDeviceLabel(): "iPhone/iPad" | "Android" | "other mobile" | "desk
   return isMobileVoiceEnvironment() ? "other mobile" : "desktop";
 }
 
-function audioFromBase64(base64: string): { url: string; blobSize: number; urlCreated: "yes" | "no"; error?: string } {
+function audioFromBase64(base64: string): {
+  url: string;
+  blobSize: number;
+  urlCreated: "yes" | "no";
+  error?: string;
+} {
+  // Unified with desktop: always use a data URL played through the singleton
+  // getOutputAudio() element. Keeps mobile and desktop on the exact same
+  // playback path so behavior, timing, and single-voice guarantees match.
   const estimatedBytes = Math.max(0, Math.floor((base64.length * 3) / 4));
-  if (!isMobileVoiceEnvironment()) {
-    return { url: `data:audio/mpeg;base64,${base64}`, blobSize: estimatedBytes, urlCreated: "yes" };
-  }
-  try {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], { type: "audio/mpeg" });
-    return { url: URL.createObjectURL(blob), blobSize: blob.size, urlCreated: "yes" };
-  } catch (err) {
-    const message = exactError(err);
-    console.warn("[voice] mobile blob audio URL failed; using data URL", err);
-    return { url: `data:audio/mpeg;base64,${base64}`, blobSize: estimatedBytes, urlCreated: "yes", error: message };
-  }
+  return { url: `data:audio/mpeg;base64,${base64}`, blobSize: estimatedBytes, urlCreated: "yes" };
 }
 
-function mobileAudioFromBase64(base64: string): { audio: HTMLAudioElement; url: string; blobSize: number } {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  const blob = new Blob([bytes], { type: "audio/mpeg" });
-  const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
-  audio.preload = "auto";
-  audio.muted = false;
-  audio.defaultMuted = false;
-  audio.volume = 1;
-  audio.setAttribute("playsinline", "");
-  (audio as any).playsInline = true;
-  return { audio, url, blobSize: blob.size };
+// ---------------------------------------------------------------------------
+// Voice startup timing instrumentation
+// ---------------------------------------------------------------------------
+// Records elapsed ms from app open (module load) to key voice-startup milestones
+// so we can verify the greeting begins within 1–2 seconds on iPhone Safari and
+// Android Chrome. View in DevTools console (filter "[voice-timing]") or on
+// mobile append ?voiceDebug=1 to inspect window.__voiceTimings.
+const voiceStartupT0: number = typeof performance !== "undefined" ? performance.now() : Date.now();
+const voiceTimings: Array<{ mark: string; ms: number; sinceLast: number }> = [];
+let voiceTimingsLast = voiceStartupT0;
+function markVoiceTiming(mark: string) {
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const ms = Math.round(now - voiceStartupT0);
+  const sinceLast = Math.round(now - voiceTimingsLast);
+  voiceTimingsLast = now;
+  voiceTimings.push({ mark, ms, sinceLast });
+  try {
+    console.info(`[voice-timing] +${ms}ms (Δ${sinceLast}ms) ${mark}`);
+  } catch {}
+  if (typeof window !== "undefined") {
+    (window as any).__voiceTimings = voiceTimings;
+    (window as any).__voiceStartupT0 = voiceStartupT0;
+  }
+}
+if (typeof window !== "undefined") markVoiceTiming("module load");
+
+// Resolves when the fridge has shown closed for 1s, opened over 3s, and held
+// fully open for 1s. If the intro is not on screen, resolves immediately. A
+// timeout guarantees the greeting never waits forever if the event is missed.
+function logVoiceStage(stage: string, detail: Record<string, unknown> = {}) {
+  try {
+    console.info(`[voice-stage] ${stage}`, detail);
+  } catch {}
+}
+
+function waitForFridgeVoiceReady(timeoutMs = 6200): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  const w = window as any;
+  if (w.__tfcFridgeVoiceReady) return Promise.resolve();
+  const introVisible = !!document.querySelector("[data-fridge-intro]");
+  const homepageIntroLikely = window.location.pathname === "/";
+  if (!w.__tfcFridgeIntroActive && !introVisible && !homepageIntroLikely) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = (mark: string) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener(FRIDGE_INTRO_VOICE_TAP_EVENT, onEvent);
+      window.clearTimeout(timer);
+      markVoiceTiming(`waitForFridgeVoiceReady: ${mark}`);
+      resolve();
+    };
+    const onEvent = () => finish("event received");
+    window.addEventListener(FRIDGE_INTRO_VOICE_TAP_EVENT, onEvent, { once: true });
+    const timer = window.setTimeout(() => finish("timeout"), timeoutMs);
+  });
 }
 
 async function preloadGreetingAudio(): Promise<string | null> {
   if (greetingAudioUrl) return greetingAudioUrl;
   if (greetingPreloadPromise) return greetingPreloadPromise;
+  markVoiceTiming("preload greeting: fetch start");
+  logVoiceStage("voice configuration loaded", { greeting: GREETING_TEXT });
+  logVoiceStage("greeting requested", { source: "preload" });
   greetingPreloadPromise = (async () => {
     try {
       const res = await synthesizeChefVoice({ data: { text: GREETING_TEXT } });
@@ -134,17 +232,37 @@ async function preloadGreetingAudio(): Promise<string | null> {
         greetingAudioBlobSize = audioResult.blobSize;
         greetingAudioUrlCreated = audioResult.urlCreated;
         if (audioResult.error) greetingPreloadError = audioResult.error;
+        markVoiceTiming(`preload greeting: audio ready (${audioResult.blobSize ?? "?"} bytes)`);
+        logVoiceStage("ElevenLabs audio received", {
+          kind: "greeting",
+          bytes: audioResult.blobSize,
+        });
         return greetingAudioUrl;
       }
       greetingPreloadError = res?.error || "ElevenLabs returned no greeting audio";
+      markVoiceTiming(`preload greeting: FAILED (${greetingPreloadError})`);
     } catch (err) {
       greetingPreloadError = exactError(err);
       console.error("[voice] greeting preload failed", err);
+      markVoiceTiming(`preload greeting: THREW (${greetingPreloadError})`);
     }
     greetingPreloadPromise = null;
-    return null;
+    // Offline / synthesis failure: fall back to the bundled welcome clip so
+    // the assistant still speaks and the listening loop still starts.
+    greetingAudioUrl = bundledGreetingAudioUrl;
+    return greetingAudioUrl;
   })();
   return greetingPreloadPromise;
+}
+
+// Kick off the ElevenLabs greeting fetch at module import so the audio is
+// already in flight (or fully cached) by the time <VoiceGreeting /> mounts
+// and the fridge intro finishes. Cuts the perceived startup delay from
+// tens of seconds down to whatever the browser needs to play the cached MP3.
+if (typeof window !== "undefined") {
+  try {
+    void preloadGreetingAudio();
+  } catch {}
 }
 
 const HISTORY_KEY = "tfc.voice.history.v1";
@@ -153,6 +271,23 @@ const REOPEN_EVENT = "tfc:voice:reopen-popup";
 const MAX_HISTORY = 20;
 
 let started = false; // module-level guard: greeting plays only once per load
+
+// Signing in reloads the page. The sign-in screen sets this flag right before
+// the redirect so the voice assistant treats the signed-in page as a fresh
+// start: greeting plays once more, sound comes back unmuted, and the
+// hands-free loop restarts. Authentication never disables the assistant.
+const AUTH_RESUME_KEY = "tfc.voice.resume-after-auth.v1";
+if (typeof window !== "undefined") {
+  try {
+    if (sessionStorage.getItem(AUTH_RESUME_KEY) === "1") {
+      sessionStorage.removeItem(AUTH_RESUME_KEY);
+      // Keep the "already greeted" flag: signing in reloads the page, but the
+      // welcome line is only ever said once per session.
+      setVoiceEnabled(true);
+      started = false;
+    }
+  } catch {}
+}
 
 type MicState = "idle" | "granted" | "denied" | "unsupported";
 type Turn = { role: "user" | "assistant"; text: string };
@@ -175,7 +310,11 @@ function saveHistory(h: Turn[]) {
 
 function isPopupDismissed(): boolean {
   if (typeof sessionStorage === "undefined") return false;
-  try { return sessionStorage.getItem(DISMISSED_KEY) === "1"; } catch { return false; }
+  try {
+    return sessionStorage.getItem(DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 function setPopupDismissed(v: boolean) {
   if (typeof sessionStorage === "undefined") return;
@@ -185,32 +324,47 @@ function setPopupDismissed(v: boolean) {
   } catch {}
 }
 
-
 export function VoiceGreeting() {
   const chatFn = useServerFn(chatWithChef);
-  const { prefs } = useDietaryPrefs();
+  const guestChatFn = useServerFn(chatWithChefGuest);
+  const { restrictions } = useDietaryPrefs();
+  const { language: chatLanguage } = useLanguage();
   const recognizerRef = useRef<VoiceRecognizer | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const historyRef = useRef<Turn[]>(loadHistory());
+  const prefsRef = useRef(restrictions);
   const loopingRef = useRef(true);
   const runningRef = useRef(false);
   const speakingRef = useRef(false);
+  // Set when the user has interrupted several times in a row — the next reply
+  // gets a brief, warm "Pardon me." prefix, then it's cleared.
+  const pardonPendingRef = useRef(false);
+  const speechEpochRef = useRef(0);
+  const bargeAcknowledgingRef = useRef(false);
+  const finishActiveListenRef = useRef<(() => void) | null>(null);
   const lastActivityRef = useRef(Date.now());
   const lastMicMsRef = useRef<number>(0);
   const micStateRef = useRef<MicState>("idle");
   const mobileMicPermissionPromiseRef = useRef<Promise<MicState> | null>(null);
-  const mobileButtonGestureAtRef = useRef(0);
+  const pendingCompanionPromptRef = useRef<string | null>(null);
+  const voicePrintRef = useRef<VoicePrintResult | null>(null);
+  const awaitingSpeakerNameRef = useRef(false);
   const startVoiceFromTapRef = useRef<(() => void) | null>(null);
   const unlockHandlerRef = useRef<(() => void) | null>(null);
-  const pendingSpeechRef = useRef<{ text: string; kind: "greeting" | "reply"; audioUrl?: string; audioBase64?: string } | null>(null);
+  const pendingSpeechRef = useRef<{
+    text: string;
+    kind: "greeting" | "reply";
+    audioUrl?: string;
+    audioBase64?: string;
+  } | null>(null);
   const [micState, setMicStateValue] = useState<MicState>("idle");
-  const [dismissed, setDismissed] = useState<boolean>(() => isPopupDismissed());
-  const [showMobileStart, setShowMobileStart] = useState(false);
+  const [, setDismissed] = useState<boolean>(() => isPopupDismissed());
+  const [, setShowMobileStart] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [audioDebug, setAudioDebug] = useState<string[]>([]);
   const [mobileDebug, setMobileDebug] = useState<MobileVoiceDebug>(initialMobileDebug);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
-  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [, setVoiceLoading] = useState(false);
   const [greetingReady, setGreetingReady] = useState<boolean>(!!greetingAudioUrl);
   const [clientReady, setClientReady] = useState(false);
   const [voiceDebugMode, setVoiceDebugMode] = useState(false);
@@ -220,16 +374,40 @@ export function VoiceGreeting() {
     setMicStateValue(status);
   };
 
+  useEffect(() => {
+    prefsRef.current = restrictions;
+  }, [restrictions]);
 
+  useEffect(() => {
+    markVoiceTiming("VoiceGreeting mounted");
+  }, []);
+
+  // Signing in or out must never leave the assistant silent. Whenever the
+  // account state changes in place (no page reload), unmute and restart the
+  // listening loop so the conversation carries on exactly as before.
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "TOKEN_REFRESHED") return;
+      setVoiceEnabled(true);
+      loopingRef.current = true;
+      lastActivityRef.current = 0;
+      try {
+        (window as any).__tfcRestartVoiceLoop?.();
+      } catch {}
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     setClientReady(true);
+
     // Voice debug panel is hidden from normal users. Enable only via URL
     // (?voiceDebug=1) or by setting localStorage.tfc_voice_debug = "1".
     try {
       const url = new URL(window.location.href);
       const param = url.searchParams.get("voiceDebug");
-      const stored = typeof localStorage !== "undefined" ? localStorage.getItem("tfc_voice_debug") : null;
+      const stored =
+        typeof localStorage !== "undefined" ? localStorage.getItem("tfc_voice_debug") : null;
       setVoiceDebugMode(param === "1" || stored === "1");
     } catch {
       setVoiceDebugMode(false);
@@ -245,11 +423,16 @@ export function VoiceGreeting() {
     const onClick = (e: Event) => {
       const target = e.target as Element | null;
       if (!target || typeof (target as any).closest !== "function") return;
+      // Never treat the audio mute/ambience control as a mic/voice trigger —
+      // that click is meant to toggle sound, not reopen the assistant popup
+      // or restart the voice loop.
+      if (target.closest("[data-voice-mute], [data-ambience-toggle]")) return;
       const hit = target.closest<HTMLElement>(
-        '[data-voice-trigger], [aria-label*="microphone" i], [aria-label*="mic" i], [aria-label*="voice" i], [title*="microphone" i], [title*="voice" i]'
+        '[data-voice-trigger], [aria-label*="microphone" i], [aria-label*="mic" i], [title*="microphone" i]',
       );
       if (hit) reopen();
     };
+
     window.addEventListener("click", onClick, { capture: true });
     window.addEventListener(REOPEN_EVENT, reopen);
     window.addEventListener(FRIDGE_INTRO_VOICE_TAP_EVENT, reopen);
@@ -260,8 +443,8 @@ export function VoiceGreeting() {
     };
   }, []);
 
-
   useEffect(() => {
+    let disposed = false;
     // Diagnostic snapshot: device, permissions, capability.
     (async () => {
       const mobile = isMobileVoiceEnvironment();
@@ -273,7 +456,9 @@ export function VoiceGreeting() {
       };
       try {
         if (typeof navigator !== "undefined" && (navigator as any).permissions?.query) {
-          const mic = await (navigator as any).permissions.query({ name: "microphone" as PermissionName });
+          const mic = await (navigator as any).permissions.query({
+            name: "microphone" as PermissionName,
+          });
           info.micPermission = mic.state;
           mic.onchange = () => console.info("[voice] mic permission changed →", mic.state);
         }
@@ -283,10 +468,11 @@ export function VoiceGreeting() {
       console.info("[voice] ENV", info);
     })();
 
-    // Kick off ElevenLabs Chef Super J greeting preload so we can play it
-    // synchronously inside the first user gesture on Android. Show a
-    // "Getting voice ready…" hint if the preload / first playback drags on.
-    if (!started) setVoiceLoading(true);
+    // Kick off ElevenLabs Chef Super J greeting preload while the fridge
+    // starts opening. Avoid any visible waiting state during normal startup.
+    const loadingHintTimer = window.setTimeout(() => {
+      if (!started && !greetingAudioUrl) setVoiceLoading(true);
+    }, 1800);
     setMobileDebug((prev) => ({
       ...prev,
       elevenLabsRequestSent: "yes",
@@ -297,6 +483,7 @@ export function VoiceGreeting() {
     }));
     void preloadGreetingAudio().then((url) => {
       if (!url) {
+        window.clearTimeout(loadingHintTimer);
         setMobileDebug((prev) => ({
           ...prev,
           elevenLabsResponseSuccess: "no",
@@ -305,6 +492,7 @@ export function VoiceGreeting() {
         setVoiceLoading(false);
         return;
       }
+      window.clearTimeout(loadingHintTimer);
       setMobileDebug((prev) => ({
         ...prev,
         elevenLabsResponseSuccess: "yes",
@@ -315,7 +503,7 @@ export function VoiceGreeting() {
       setGreetingReady(true);
       try {
         const audio = getOutputAudio();
-        if (audio && !started && !isMobileVoiceEnvironment()) {
+        if (audio && !started) {
           audio.preload = "auto";
           audio.src = url;
           audio.load();
@@ -325,31 +513,51 @@ export function VoiceGreeting() {
       }
     });
 
+    // Split a reply into sentence-sized chunks so we can start speaking
+    // the first sentence while ElevenLabs is still synthesizing the rest.
+    // First chunk is intentionally small (first sentence) for fastest
+    // time-to-first-audio; remaining sentences are batched to keep prosody
+    // natural. Never splits below 3 words so short replies stay one chunk.
+    function splitForStreamingSpeech(text: string): string[] {
+      const trimmed = (text || "").trim();
+      if (!trimmed) return [];
+      const sentences = trimmed
+        .match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g)
+        ?.map((s) => s.trim())
+        .filter(Boolean) ?? [trimmed];
+      if (sentences.length <= 1) return [trimmed];
+      const first = sentences[0];
+      if (first.split(/\s+/).length < 3) {
+        // Merge tiny opener ("Oh nice!") with the next sentence so the
+        // first chunk is worth streaming on its own.
+        return [[sentences[0], sentences[1]].join(" "), ...sentences.slice(2)].filter(Boolean)
+          .length > 1
+          ? [[sentences[0], sentences[1]].join(" "), sentences.slice(2).join(" ")].filter(Boolean)
+          : [trimmed];
+      }
+      const rest = sentences.slice(1).join(" ").trim();
+      return rest ? [first, rest] : [first];
+    }
 
-
-
-
-    async function speak(text: string): Promise<void> {
+    // Speak a single already-synthesized audio blob. Preserves the exact
+    // mobile-unlock, autoplay-fallback, and error handling of the original
+    // speak() — only the TTS fetch is lifted out so callers can pipeline it.
+    async function speakOne(
+      text: string,
+      res: { audio: string | null; error?: string | null },
+      opts: { isFirstChunk: boolean; ttsStart: number },
+    ): Promise<void> {
       return new Promise(async (resolve) => {
         try {
-          try { recognizerRef.current?.stop(); } catch {}
+          try {
+            recognizerRef.current?.stop();
+          } catch {}
           recognizerRef.current = null;
 
-          const ttsStart = Date.now();
-          setMobileDebug((prev) => ({
-            ...prev,
-            elevenLabsRequestSent: "yes",
-            elevenLabsResponseSuccess: "pending",
-            audioBlobSize: null,
-            audioUrlCreated: "no",
-            audioPlayCalled: "no",
-            audioPlaySuccess: "not started",
-            exactError: "none",
-          }));
-          const res = await synthesizeChefVoice({ data: { text } });
           if (!res?.audio) {
             const reason = res?.error || "ElevenLabs returned no audio";
-            console.warn("[voice] ElevenLabs returned no audio", { mobile: isMobileVoiceEnvironment(), reason });
+            recordVoiceHealth("tts_failed", { note: reason });
+            console.warn("[voice] ElevenLabs returned no audio", { reason });
             setMobileDebug((prev) => ({
               ...prev,
               elevenLabsResponseSuccess: "no",
@@ -367,20 +575,24 @@ export function VoiceGreeting() {
             audioPlaySuccess: "pending",
             exactError: audioResult.error || "none",
           }));
-          stopAllAudio();
-          const mobilePlayback = isMobileVoiceEnvironment();
-          const audio = mobilePlayback ? new Audio(audioResult.url) : getOutputAudio();
-          if (!audio) {
+          const playbackClaim = claimVoicePlayback();
+          // Unified with desktop: always use the singleton audio element.
+          const audio = getOutputAudio();
+          if (!audio || disposed || !isVoicePlaybackClaimCurrent(playbackClaim)) {
+            releaseVoicePlaybackClaim(playbackClaim);
             const reason = "No audio element available";
-            console.warn("[voice] no audio element", { mobile: isMobileVoiceEnvironment() });
+            console.warn("[voice] no audio element");
             setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "no", exactError: reason }));
             return resolve();
           }
+          registerVoiceAudio(audio);
           audioRef.current = audio;
           audio.muted = false;
-          audio.volume = 1;
+          audio.volume = 0.82;
           audio.defaultMuted = false;
-          if (!mobilePlayback) audio.src = audioResult.url;
+          audio.src = audioResult.url;
+          audio.playbackRate = getVoiceRate();
+
           audio.preload = "auto";
           audio.setAttribute("playsinline", "");
           (audio as any).playsInline = true;
@@ -391,6 +603,19 @@ export function VoiceGreeting() {
           const onPlaying = () => {
             if (playbackBegan) return;
             playbackBegan = true;
+            if (!bargeAcknowledgingRef.current) {
+              void armAudioGate(() => {
+                if (!speakingRef.current || bargeAcknowledgingRef.current) return;
+                // The user started talking — go completely silent and listen.
+                // Usually just pause naturally; only after repeated
+                // interruptions do we offer a brief "Pardon me."
+                speechEpochRef.current += 1;
+                if (noteInterruption()) pardonPendingRef.current = true;
+                stopAllAudio();
+                disarmAudioGate();
+                speakingRef.current = false;
+              }, duckVoiceOutput);
+            }
             markVoiceAudioUnlocked();
             setMobileDebug((prev) => ({
               ...prev,
@@ -400,70 +625,102 @@ export function VoiceGreeting() {
               appAudioVolume: String(audio.volume),
               exactError: "none",
             }));
-            console.info("[voice] ElevenLabs audio STARTED", { ms: Date.now() - ttsStart, text: text.slice(0, 60) });
-            emitVoiceMeter({ phase: "speaking", ms: Date.now() - ttsStart, note: "tts+first-audio" });
+            if (opts.isFirstChunk) {
+              console.info("[voice] ElevenLabs audio STARTED", {
+                ms: Date.now() - opts.ttsStart,
+                text: text.slice(0, 60),
+              });
+              logVoiceStage("response playback started", { ms: Date.now() - opts.ttsStart });
+              emitVoiceMeter({
+                phase: "speaking",
+                ms: Date.now() - opts.ttsStart,
+                note: "tts+first-audio",
+              });
+              recordVoiceHealth("tts_audible", {
+                ms: Date.now() - opts.ttsStart,
+                note: text.slice(0, 40),
+              });
+            }
           };
           audio.onplaying = onPlaying;
           const done = () => {
             if (settled) return;
             settled = true;
+            disarmAudioGate();
+            const ownsPlayback = isVoicePlaybackClaimCurrent(playbackClaim);
             audio.onplaying = null;
             audio.onerror = null;
             audio.onended = null;
-            if (mobilePlayback && audioResult.url.startsWith("blob:")) {
-              try { URL.revokeObjectURL(audioResult.url); } catch {}
+            unregisterVoiceAudio(audio);
+            releaseVoicePlaybackClaim(playbackClaim);
+            if (ownsPlayback) {
+              speakingRef.current = false;
+              emitVoiceMeter({ phase: "listening", ms: Date.now() - speakStartedAt, note: "spoke" });
             }
-            speakingRef.current = false;
-            emitVoiceMeter({ phase: "listening", ms: Date.now() - speakStartedAt, note: "spoke" });
             resolve();
           };
           const doneWithFallback = async (evt?: unknown) => {
             if (settled) return;
-            // CRITICAL: only fall back if ElevenLabs playback truly never
-            // started AND we are on mobile. On desktop, browser voice must
-            // never speak — this prevents two voices overlapping.
+            disarmAudioGate();
             if (playbackBegan) {
-              // Transient error mid-playback — playback is already audible.
-              // Don't start a second voice; just resolve normally.
-              console.warn("[voice] audio error after playback began — ignoring (no fallback)", evt);
+              console.warn(
+                "[voice] audio error after playback began — ignoring (no fallback)",
+                evt,
+              );
               return done();
             }
             settled = true;
+            const ownsPlayback = isVoicePlaybackClaimCurrent(playbackClaim);
             audio.onplaying = null;
             audio.onerror = null;
             audio.onended = null;
-            if (mobilePlayback && audioResult.url.startsWith("blob:")) {
-              try { URL.revokeObjectURL(audioResult.url); } catch {}
-            }
-            const mobile = isMobileVoiceEnvironment();
-            const mediaErr = audio.error ? { code: audio.error.code, message: audio.error.message } : null;
-            const evtType = (evt && (evt as any).type) || (evt instanceof Error ? evt.message : String(evt || ""));
-            console.warn("[voice] ElevenLabs playback DID NOT START", { mobile, mediaError: mediaErr, evt: evtType });
+            unregisterVoiceAudio(audio);
+            releaseVoicePlaybackClaim(playbackClaim);
+            const mediaErr = audio.error
+              ? { code: audio.error.code, message: audio.error.message }
+              : null;
+            const evtType =
+              (evt && (evt as any).type) ||
+              (evt instanceof Error ? evt.message : String(evt || ""));
+            console.warn("[voice] ElevenLabs playback DID NOT START", {
+              mediaError: mediaErr,
+              evt: evtType,
+            });
+            recordVoiceHealth("tts_failed", { note: `playback: ${evtType || "no start"}` });
+            recordVoiceHealth("fallback", { note: "single-voice-skip" });
             setMobileDebug((prev) => ({
               ...prev,
-            tapReceived: "yes",
+              tapReceived: "yes",
               audioPlaySuccess: "no",
               exactError: `${evtType || "audio play blocked"}${mediaErr ? `; media ${mediaErr.code}: ${mediaErr.message}` : ""}`,
             }));
-            if (mobile) {
-              // Mobile autoplay blocked. Stash the text and show the
-              // "Tap to Enable Voice" overlay — a real user tap can then
-              // call audio.play() synchronously (iOS Safari requirement).
-              pendingSpeechRef.current = { text, kind: "reply", audioUrl: audio.src, audioBase64: res.audio };
+            // If autoplay is still locked, surface the tap-to-enable overlay
+            // (same behavior the desktop code follows on the very first load
+            // before any user interaction has unlocked audio).
+            if (!isVoiceAudioUnlocked()) {
+              pendingSpeechRef.current = {
+                text,
+                kind: "reply",
+                audioBase64: res.audio ?? undefined,
+              };
               setAudioDebug((prev) => [
                 ...prev.slice(-6),
                 `reply blocked: ${evtType || "no start"}${mediaErr ? ` err=${mediaErr.code}` : ""}`,
               ]);
               setAudioBlocked(true);
-            } else {
-              console.info("[voice] desktop — skipping browser fallback (single-voice policy)");
             }
-            speakingRef.current = false;
+            if (ownsPlayback) speakingRef.current = false;
             resolve();
           };
           audio.onended = done;
           audio.onerror = doneWithFallback;
-          try { audio.load(); } catch {}
+          const ready = await waitForVoiceAudioReady(audio, playbackClaim);
+          if (!ready || disposed) {
+            unregisterVoiceAudio(audio);
+            releaseVoicePlaybackClaim(playbackClaim);
+            speakingRef.current = false;
+            return resolve();
+          }
           setMobileDebug((prev) => ({
             ...prev,
             audioPlayCalled: "yes",
@@ -472,20 +729,81 @@ export function VoiceGreeting() {
           }));
           await audio.play().catch(doneWithFallback);
         } catch (err) {
-          console.error("[voice] speak() threw", err);
-          setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "no", exactError: exactError(err) }));
+          console.error("[voice] speakOne() threw", err);
+          setMobileDebug((prev) => ({
+            ...prev,
+            audioPlaySuccess: "no",
+            exactError: exactError(err),
+          }));
           speakingRef.current = false;
           resolve();
         }
       });
     }
 
+    // Streamed speak(): split the reply into sentence chunks, fire ALL
+    // ElevenLabs TTS requests in parallel immediately, and start playing
+    // the first chunk the moment it comes back. Cuts perceived latency
+    // from "wait for full audio" (~1.5-3s) to "wait for first sentence"
+    // (~400-700ms) without changing voice, personality, or answer length.
+    async function speak(text: string): Promise<void> {
+      if (pardonPendingRef.current) {
+        pardonPendingRef.current = false;
+        text = `Pardon me. ${text}`;
+      }
+      const chunks = splitForStreamingSpeech(text);
+      if (chunks.length === 0) return;
+      const speechEpoch = speechEpochRef.current;
 
+      const ttsStart = Date.now();
+      setMobileDebug((prev) => ({
+        ...prev,
+        elevenLabsRequestSent: "yes",
+        elevenLabsResponseSuccess: "pending",
+        audioBlobSize: null,
+        audioUrlCreated: "no",
+        audioPlayCalled: "no",
+        audioPlaySuccess: "not started",
+        exactError: "none",
+      }));
+      recordVoiceHealth("tts_request", { note: `${chunks.length}ch: ${text.slice(0, 40)}` });
+      logVoiceStage("ElevenLabs audio requested", { kind: "reply", chunks: chunks.length });
+
+      // Kick off every chunk's TTS in parallel — first-chunk audio arrives
+      // as fast as the shortest sentence takes to synthesize.
+      const ttsPromises = chunks.map((chunk) =>
+        synthesizeChefVoice({ data: { text: chunk } }).catch((err) => ({
+          audio: null,
+          mime: "audio/mpeg" as const,
+          error: err instanceof Error ? err.message : String(err),
+        })),
+      );
+
+      for (let i = 0; i < chunks.length; i += 1) {
+        if (speechEpoch !== speechEpochRef.current) break;
+        const res = await ttsPromises[i];
+        if (speechEpoch !== speechEpochRef.current) break;
+        if (res?.audio) logVoiceStage("ElevenLabs audio received", { kind: "reply", chunk: i + 1 });
+        await speakOne(chunks[i], res as { audio: string | null; error?: string | null }, {
+          isFirstChunk: i === 0,
+          ttsStart,
+        });
+        if (speechEpoch !== speechEpochRef.current) break;
+        // Calibrated breathing room between sentences (Settings → Voice timing).
+        const gap = getVoicePauseMs();
+        if (gap > 0 && i < chunks.length - 1) {
+          await new Promise((r) => setTimeout(r, gap));
+        }
+      }
+
+    }
 
     async function requestMicOnce(): Promise<MicState> {
       if (micStateRef.current === "granted") return "granted";
       const pendingMobilePermission = mobileMicPermissionPromiseRef.current;
-      const status = pendingMobilePermission ? await pendingMobilePermission : await requestMicPermission();
+      const status = pendingMobilePermission
+        ? await pendingMobilePermission
+        : await requestMicPermission();
       setMicState(status);
       if (status !== "granted") mobileMicPermissionPromiseRef.current = null;
       return status;
@@ -493,13 +811,31 @@ export function VoiceGreeting() {
 
     async function listenOnce(): Promise<string | null> {
       if (!isRecognitionSupported()) return null;
+      if (getVoiceSessionOwner() !== "global") return null;
+      // App Store rule: inside the native app the microphone prompt must not
+      // appear until the person chooses a voice feature. Chef still greets and
+      // everything else works; we simply do not open the mic until then.
+      if (isNativeApp() && !hasConsent("microphone")) {
+        await new Promise((r) => setTimeout(r, 1200));
+        return null;
+      }
+
       while (speakingRef.current) {
         await new Promise((r) => setTimeout(r, 20));
       }
       console.info("[voice] MIC_STARTED");
+      logVoiceStage("microphone started");
       lastActivityRef.current = Date.now();
       const micStart = Date.now();
       emitVoiceMeter({ phase: "listening", note: "mic open" });
+      // Optional, opt-in voice fingerprint for multi-speaker recognition.
+      // Nothing is captured unless the household enrolled voice profiles.
+      let printCapture: Awaited<ReturnType<typeof startVoicePrint>> = null;
+      voicePrintRef.current = null;
+      if (hasSpeakerConsent() && listSpeakerProfiles().length > 0) {
+        printCapture = await startVoicePrint().catch(() => null);
+      }
+
       return new Promise((resolve) => {
         const rec = new VoiceRecognizer();
         recognizerRef.current = rec;
@@ -509,12 +845,28 @@ export function VoiceGreeting() {
         const finish = (text: string | null) => {
           if (done) return;
           done = true;
-          try { rec.stop(); } catch {}
+          finishActiveListenRef.current = null;
+          if (printCapture) {
+            try {
+              voicePrintRef.current = printCapture.stop();
+            } catch {
+              voicePrintRef.current = null;
+            }
+            printCapture = null;
+          }
+          try {
+            rec.stop();
+          } catch {}
           lastMicMsRef.current = Date.now() - micStart;
           const cleaned = (text ?? finalText ?? "").trim();
-          console.info("[voice] MIC_FINISHED", { hasText: !!cleaned, chars: cleaned.length, ms: lastMicMsRef.current });
+          console.info("[voice] MIC_FINISHED", {
+            hasText: !!cleaned,
+            chars: cleaned.length,
+            ms: lastMicMsRef.current,
+          });
           resolve(denied ? "__DENIED__" : cleaned || null);
         };
+        finishActiveListenRef.current = () => finish(null);
         const timeout = setTimeout(() => finish(null), 30000);
         rec.start({
           onPartial: (t) => {
@@ -527,6 +879,7 @@ export function VoiceGreeting() {
             clearTimeout(timeout);
             lastActivityRef.current = Date.now();
             console.info("[voice] TRANSCRIPT_CAPTURED", { chars: cleaned.length });
+            logVoiceStage("transcript created", { chars: cleaned.length });
             finish(cleaned || finalText);
           },
           onError: (msg) => {
@@ -548,172 +901,348 @@ export function VoiceGreeting() {
       });
     }
 
-
     async function conversationTurn(): Promise<"continue" | "pause"> {
-      const transcript = await listenOnce();
+      recordVoiceHealth("turn_start");
+
+      const queuedPrompt = pendingCompanionPromptRef.current;
+      pendingCompanionPromptRef.current = null;
+      const transcript = queuedPrompt || (await listenOnce());
       if (transcript === "__DENIED__") {
-        // Mic denied for this attempt (mobile web transient race,
-        // audio-session conflict, etc.). Wait briefly and keep the
-        // loop alive instead of stopping the conversation.
         console.warn("[voice] mic denied this turn — retrying");
+        recordVoiceHealth("mic_denied");
         await new Promise((r) => setTimeout(r, 800));
         return "continue";
       }
       if (!transcript) return "continue";
+      recordVoiceHealth("transcript", {
+        ms: lastMicMsRef.current,
+        note: `${transcript.length} chars`,
+      });
+      // ---- Who is talking? (only with enrolled, opted-in voice profiles) ----
+      let speakerPayload:
+        | { status: "match" | "unsure" | "none" | "overlap"; name?: string; roster: string[] }
+        | undefined;
+      if (hasSpeakerConsent() && listSpeakerProfiles().length > 0) {
+        const roster = listSpeakerProfiles().map((p) => {
+          const bits: string[] = [];
+          if (p.restrictions.length) bits.push(`must avoid ${p.restrictions.join(", ")}`);
+          if (p.likes.length) bits.push(`likes ${p.likes.join(", ")}`);
+          if (p.dislikes.length) bits.push(`dislikes ${p.dislikes.join(", ")}`);
+          if (p.experience !== "unknown") bits.push(`${p.experience} cook`);
+          if (p.notes) bits.push(p.notes);
+          return `- ${p.name}${bits.length ? ` — ${bits.join("; ")}` : ""}`.slice(0, 200);
+        });
+        const print = voicePrintRef.current;
+
+        if (print?.overlap) {
+          awaitingSpeakerNameRef.current = false;
+          speakerPayload = { status: "overlap", roster };
+        } else if (awaitingSpeakerNameRef.current) {
+          // They were asked "Who's speaking right now?" — take them at their word.
+          const named = findSpeakerBySpokenName(transcript);
+          awaitingSpeakerNameRef.current = false;
+          if (named) {
+            setActiveSpeaker(named.id);
+            if (print?.vector) addSpeakerSample(named.id, print.vector);
+            speakerPayload = { status: "match", name: named.name, roster };
+          } else {
+            speakerPayload = { status: "none", roster };
+          }
+        } else {
+          const result = matchSpeaker(print?.vector ?? null);
+          if (result.status === "match") {
+            setActiveSpeaker(result.profile.id);
+            speakerPayload = { status: "match", name: result.profile.name, roster };
+          } else if (result.status === "unsure") {
+            // Never guess. Ask.
+            awaitingSpeakerNameRef.current = true;
+            setActiveSpeaker(null);
+            speakerPayload = { status: "unsure", roster };
+          } else {
+            const active = getSpeakerProfile(getActiveSpeakerId());
+            speakerPayload = active
+              ? { status: "match", name: active.name, roster }
+              : { status: "none", roster };
+          }
+        }
+      }
+
       console.info("[voice] AI_REQUEST_SENT", { chars: transcript.length });
+      logVoiceStage("speech detected", { chars: transcript.length });
       historyRef.current.push({ role: "user", text: transcript });
       saveHistory(historyRef.current);
+
       try {
         const { data } = await supabase.auth.getSession();
-        if (!data.session?.user) {
-          await speak(
-            "Sign in any time and I'll connect your fridge, recipes, and savings.",
-          );
-          return "continue";
-        }
-        emitVoiceMeter({ phase: "thinking", ms: lastMicMsRef.current, note: transcript.slice(0, 60) });
-        const thinkStart = Date.now();
-        const reply = await chatFn({
-          data: {
-            message: transcript,
-            // Pass the full recent window so Chef remembers the whole meal
-            // being planned across many turns (dishes, ingredients, spice
-            // level, etc.), not just the last exchange.
-            history: historyRef.current.slice(-10),
-            restrictions: prefs.map((p) => dietLabel(p)),
-            voicePersonality: getVoicePersonality(),
-          },
+        emitVoiceMeter({
+          phase: "thinking",
+          ms: lastMicMsRef.current,
+          note: transcript.slice(0, 60),
         });
+        const thinkStart = Date.now();
+        recordVoiceHealth("ai_request", { note: transcript.slice(0, 40) });
+        const scanCtx = getScanContext();
+        const knownUserName = await resolveUserName();
+        const payload = {
+          message: transcript,
+          history: historyRef.current.slice(-24),
+          restrictions: prefsRef.current,
+          voicePersonality: getVoicePersonality(),
+          language: chatLanguage,
+          ...(speakerPayload ? { speaker: speakerPayload } : {}),
+          ...(knownUserName ? { userName: knownUserName } : {}),
+          ...(scanCtx
+            ? {
+                scanContext: {
+                  items: scanCtx.items,
+                  useFirst: scanCtx.useFirst,
+                  summary: scanCtx.summary,
+                  storage: scanCtx.storage,
+                },
+              }
+            : {}),
+        };
+        let reply: Awaited<ReturnType<typeof chatFn>> | null = null;
+        let lastErr: unknown = null;
+        try {
+          reply = data.session?.user
+            ? await chatFn({ data: payload })
+            : await guestChatFn({ data: payload });
+        } catch (err) {
+          lastErr = err;
+          recordVoiceHealth("ai_error", {
+            note: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Being signed in must never silence the conversation. If the
+        // account-aware reply fails for any reason (expired token, network,
+        // cold start), fall back to the same path logged-out visitors use.
+        if (!reply?.reply && data.session?.user) {
+          try {
+            reply = await guestChatFn({ data: payload });
+            if (reply?.reply) lastErr = null;
+          } catch (err) {
+            lastErr = err;
+          }
+        }
+
         if (reply?.reply) {
-          console.info("[voice] AI_RESPONSE_RECEIVED", { chars: reply.reply.length, intent: reply.intent });
+          console.info("[voice] AI_RESPONSE_RECEIVED", {
+            chars: reply.reply.length,
+            intent: reply.intent,
+          });
+          logVoiceStage("assistant response received", {
+            chars: reply.reply.length,
+            intent: reply.intent,
+          });
+          recordVoiceHealth("ai_response", { ms: Date.now() - thinkStart, note: reply.intent });
           historyRef.current.push({ role: "assistant", text: reply.reply });
           saveHistory(historyRef.current);
           emitVoiceMeter({ phase: "speaking", ms: Date.now() - thinkStart, note: "llm done" });
-          // Reply immediately — no artificial thinking pause.
           await speak(reply.reply);
         } else {
-          await speak("I didn't quite catch that. Try again?");
+          // All retries failed — stay in-character, keep conversation going,
+          // never announce a technical error. Craft a contextual nudge from
+          // what we already know.
+          console.error("[voice] chat reply failed after retries", lastErr);
+          recordVoiceHealth("ai_error", { note: "all retries failed — using contextual fallback" });
+          const lastAssistant = [...historyRef.current]
+            .reverse()
+            .find((m) => m.role === "assistant")?.text;
+          const graceful = lastAssistant
+            ? "Let's keep going — tell me a bit more about what you're in the mood for, or any ingredients you'd like to use."
+            : "Tell me what ingredients you have on hand or what you're in the mood for, and I'll pull something together.";
+          try {
+            await speak(graceful);
+          } catch {
+            /* keep looping */
+          }
         }
       } catch (err) {
-        console.error("[voice] chat reply failed", err);
-        try {
-          await speak("I heard you, but my chef brain hiccuped. Say that one more time?");
-        } catch {
-          /* even TTS fell over — keep looping instead of stopping */
-        }
+        // Outer safety net — never break the loop, never announce an error.
+        console.error("[voice] turn outer error", err);
+        recordVoiceHealth("ai_error", { note: err instanceof Error ? err.message : String(err) });
       }
+
       return "continue";
     }
 
     async function runFlow() {
+      if (disposed) return;
       if (runningRef.current) return;
       if (!getVoiceEnabled()) return;
+      if (getVoiceSessionOwner() !== "global") return;
       runningRef.current = true;
       loopingRef.current = true;
+      markVoiceTiming("runFlow: start");
 
       try {
-        await unlockVoiceAudio();
-
         if (!started) {
-          let greetingOk = false;
-          try {
-            setVoiceLoading(true);
-            const url = greetingAudioUrl ?? (await preloadGreetingAudio());
-            if (!url) throw new Error("no greeting audio");
-            stopAllAudio();
-            const audio = getOutputAudio();
-            if (!audio) throw new Error("no audio element");
-            audioRef.current = audio;
-            audio.muted = false;
-            audio.volume = 1;
-            audio.defaultMuted = false;
-            audio.src = url;
-            audio.preload = "auto";
-            audio.setAttribute("playsinline", "");
-            (audio as any).playsInline = true;
-            try { audio.load(); } catch {}
-            // Wait until the browser has enough data to play the greeting
-            // through without stalling — prevents mid-word cut-offs.
-            await new Promise<void>((ready) => {
-              if (audio.readyState >= 4) return ready();
-              const onReady = () => {
-                audio.removeEventListener("canplaythrough", onReady);
-                ready();
-              };
-              audio.addEventListener("canplaythrough", onReady, { once: true });
-              // Hard cap so we never hang forever on flaky networks.
-              window.setTimeout(() => {
-                audio.removeEventListener("canplaythrough", onReady);
-                ready();
-              }, 4000);
-            });
-            if (!isMobileVoiceEnvironment()) {
-              try { void playFridgeOpen(); } catch {}
+          // If the user has muted the AI voice, skip the audible greeting but
+          // still mark the session as greeted so the hands-free listening loop
+          // begins immediately. Muting must never disable the rest of the app.
+          if (!getVoiceEnabled()) {
+            started = true;
+            markGreeted();
+          } else if (hasGreetedThisSession()) {
+            // The welcome line is said once per app open. Coming back to the
+            // voice loop later in the same session uses a short, varied,
+            // relaxed nudge instead of repeating the welcome.
+            started = true;
+            setVoiceLoading(false);
+            try {
+              await speak(pickReturnLine());
+            } catch {
+              /* keep the loop going even if this line can't play */
             }
-            speakingRef.current = true;
-            greetingOk = await new Promise<boolean>((resolve) => {
-              let settled = false;
-              const done = (ok: boolean) => {
-                if (settled) return;
-                settled = true;
+          } else {
+
+            let greetingOk = false;
+            try {
+              if (!greetingAudioUrl) setVoiceLoading(true);
+              const url = greetingAudioUrl ?? (await preloadGreetingAudio());
+              if (!url) throw new Error("no greeting audio");
+              markVoiceTiming("runFlow: greeting URL ready");
+              // Align greeting start to the fridge intro: if the intro is on
+              // screen and the doors haven't begun opening yet, wait for the
+              // "doors opening" event so voice + animation begin together.
+              // Cap the wait so a missed event never stalls the greeting.
+              await waitForFridgeVoiceReady(6200);
+              if (disposed || started || speakingRef.current) return;
+              markVoiceTiming("runFlow: aligned with fridge voice-ready pause");
+
+              const playbackClaim = claimVoicePlayback();
+              const audio = getOutputAudio();
+              if (!audio || !isVoicePlaybackClaimCurrent(playbackClaim)) {
+                releaseVoicePlaybackClaim(playbackClaim);
+                throw new Error("no audio element");
+              }
+              registerVoiceAudio(audio);
+              audioRef.current = audio;
+              audio.muted = false;
+              audio.volume = 0.82;
+              audio.defaultMuted = false;
+              audio.src = url;
+              audio.preload = "auto";
+              audio.setAttribute("playsinline", "");
+              (audio as any).playsInline = true;
+              const ready = await waitForVoiceAudioReady(audio, playbackClaim);
+              if (!ready || disposed || !isVoicePlaybackClaimCurrent(playbackClaim)) {
+                unregisterVoiceAudio(audio);
+                releaseVoicePlaybackClaim(playbackClaim);
                 speakingRef.current = false;
-                resolve(ok);
-              };
-              audio.onplaying = () => {
-                setVoiceLoading(false);
-                markVoiceAudioUnlocked();
-                setAudioUnlocked(true);
-                setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "yes", exactError: "none" }));
-                emitVoiceMeter({ phase: "speaking", note: "welcome audio started" });
-              };
-              audio.onended = () => done(true);
-              audio.onerror = () => {
-                const mediaErr = audio.error ? `media ${audio.error.code}: ${audio.error.message}` : "audio error";
-                setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "no", exactError: mediaErr }));
-                done(false);
-              };
-              setMobileDebug((prev) => ({
-                ...prev,
-                audioPlayCalled: "yes",
-                appAudioMuted: audio.muted ? "yes" : "no",
-                appAudioVolume: String(audio.volume),
-              }));
-              audio.play().then(() => {}).catch((err) => {
-                setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "no", exactError: exactError(err) }));
-                done(false);
+                throw new Error("greeting audio was not ready for stable playback");
+              }
+
+              speakingRef.current = true;
+              greetingOk = await new Promise<boolean>((resolve) => {
+                let settled = false;
+                const done = (ok: boolean) => {
+                  if (settled) return;
+                  settled = true;
+                  const ownsPlayback = isVoicePlaybackClaimCurrent(playbackClaim);
+                  unregisterVoiceAudio(audio);
+                  releaseVoicePlaybackClaim(playbackClaim);
+                  if (ownsPlayback) speakingRef.current = false;
+                  resolve(ok);
+                };
+                const greetingStartMs = Date.now();
+                recordVoiceHealth("greeting_started");
+                logVoiceStage("greeting requested", { source: "playback" });
+                audio.onplaying = () => {
+                  markVoiceTiming("GREETING AUDIBLE (audio.onplaying)");
+                  logVoiceStage("audio playback started", { kind: "greeting" });
+                  recordVoiceHealth("greeting_audible", { ms: Date.now() - greetingStartMs });
+                  setVoiceLoading(false);
+                  markVoiceAudioUnlocked();
+                  setAudioUnlocked(true);
+                  setMobileDebug((prev) => ({
+                    ...prev,
+                    audioPlaySuccess: "yes",
+                    exactError: "none",
+                  }));
+                  emitVoiceMeter({ phase: "speaking", note: "welcome audio started" });
+                  void armAudioGate(() => {
+                    if (!speakingRef.current) return;
+                    // User started talking during the welcome — stop instantly.
+                    if (noteInterruption()) pardonPendingRef.current = true;
+                    stopAllAudio();
+                    disarmAudioGate();
+                    speakingRef.current = false;
+                  }, duckVoiceOutput);
+                };
+                audio.onended = () => done(true);
+                audio.onerror = () => {
+                  const mediaErr = audio.error
+                    ? `media ${audio.error.code}: ${audio.error.message}`
+                    : "audio error";
+                  setMobileDebug((prev) => ({
+                    ...prev,
+                    audioPlaySuccess: "no",
+                    exactError: mediaErr,
+                  }));
+                  done(false);
+                };
+                setMobileDebug((prev) => ({
+                  ...prev,
+                  audioPlayCalled: "yes",
+                  appAudioMuted: audio.muted ? "yes" : "no",
+                  appAudioVolume: String(audio.volume),
+                }));
+                markVoiceTiming("runFlow: calling audio.play()");
+                audio
+                  .play()
+                  .then(() => {
+                    markVoiceTiming("runFlow: audio.play() resolved");
+                  })
+                  .catch((err) => {
+                    markVoiceTiming(`runFlow: audio.play() REJECTED (${exactError(err)})`);
+                    setMobileDebug((prev) => ({
+                      ...prev,
+                      audioPlaySuccess: "no",
+                      exactError: exactError(err),
+                    }));
+                    done(false);
+                  });
               });
-            });
-            if (greetingOk) {
+
+              if (greetingOk) {
+                started = true;
+                markGreeted();
+              }
+            } catch (err) {
+              console.error("[voice] greeting playback failed", err);
+            } finally {
+              setVoiceLoading(false);
+            }
+            if (!greetingOk) {
+              speakingRef.current = false;
+              recordVoiceHealth("greeting_blocked", {
+                note: isMobileVoiceEnvironment() ? "mobile autoplay" : "desktop",
+              });
+              // Never hold the hands-free loop behind a tap. If a browser blocks
+              // the opening audio, continue directly to microphone listening;
+              // spoken replies still use only the prepared ElevenLabs voice.
+              console.warn("[voice] greeting playback blocked — continuing hands-free");
+              // iPhone/Safari refuses autoplay outright. Keep the prepared
+              // greeting queued so the very first real touch anywhere plays it
+              // instantly inside that gesture. Android/native already played it,
+              // so this branch never runs there.
+              if (!pendingSpeechRef.current && !hasGreetedThisSession()) {
+                pendingSpeechRef.current = {
+                  text: GREETING_TEXT,
+                  kind: "greeting",
+                  audioUrl: greetingAudioUrl ?? undefined,
+                  audioBase64: greetingAudioBase64 ?? undefined,
+                };
+              }
               started = true;
               markGreeted();
             }
-          } catch (err) {
-            console.error("[voice] greeting playback failed", err);
-          } finally {
-            setVoiceLoading(false);
-          }
-          if (!greetingOk) {
-            speakingRef.current = false;
-            if (isMobileVoiceEnvironment()) {
-              // Mobile autoplay blocked the greeting. Show "Tap to Enable Voice"
-              // so the user can unlock audio with a real tap, then Chef will
-              // greet with the polished ElevenLabs voice — not the browser voice.
-              pendingSpeechRef.current = { text: GREETING_TEXT, kind: "greeting", audioUrl: greetingAudioUrl ?? undefined, audioBase64: greetingAudioBase64 ?? undefined };
-              setAudioDebug((prev) => [...prev.slice(-6), "greeting blocked by autoplay policy"]);
-              setAudioBlocked(true);
-              return; // wait for the user tap; runFlow will be re-entered
-            }
-            // Desktop: something odd happened; log and continue so the loop
-            // doesn't stall. No browser TTS on desktop (single-voice policy).
-            console.warn("[voice] desktop greeting failed — continuing without voice");
-            started = true;
-            markGreeted();
           }
         } else {
           setVoiceLoading(false);
         }
-
-
 
         // On mobile web, don't gate the loop on a pre-flight getUserMedia
         // probe — the MobileRecognizer opens its own mic stream, and a
@@ -723,18 +1252,25 @@ export function VoiceGreeting() {
         const mobileWeb = isMobileVoiceEnvironment();
         if (!mobileWeb) {
           const status = await requestMicOnce();
+          logVoiceStage("microphone permission result", { status });
           if (status !== "granted") return; // desktop: modal shown; loop paused
         } else {
           setMicState("granted");
+          logVoiceStage("microphone permission result", { status: "granted", mobileWeb: true });
         }
 
-        while (loopingRef.current) {
+        while (loopingRef.current && !disposed) {
+          if (getVoiceSessionOwner() !== "global") break;
+          recordVoiceHealth("loop_iteration");
           try {
             const s = await conversationTurn();
+            logVoiceStage("listening restarted", { result: s });
             if (s === "pause") break;
           } catch (err) {
-            // Safety net: any unexpected throw shouldn't kill the loop.
             console.error("[voice] conversationTurn threw — continuing", err);
+            recordVoiceHealth("ai_error", {
+              note: err instanceof Error ? err.message : "loop throw",
+            });
             await new Promise((r) => setTimeout(r, 600));
           }
         }
@@ -752,31 +1288,12 @@ export function VoiceGreeting() {
     // calling play(). Requires greetingAudioUrl to be preloaded already;
     // if it isn't, we bail so the async runFlow path handles it.
     const playGreetingInGesture = (): boolean => {
+      // The welcome line belongs to the first app open only. If it has already
+      // been said this session, let the async loop speak a short varied line.
+      if (hasGreetedThisSession()) return false;
       const url = greetingAudioUrl;
       if (!url) return false;
-      const mobilePlayback = isMobileVoiceEnvironment() && !!greetingAudioBase64;
-      let mobileObjectUrl: string | null = null;
-      let audio: HTMLAudioElement | null = null;
-      try {
-        if (mobilePlayback && greetingAudioBase64) {
-          const mobileAudio = mobileAudioFromBase64(greetingAudioBase64);
-          audio = mobileAudio.audio;
-          mobileObjectUrl = mobileAudio.url;
-          greetingAudioBlobSize = mobileAudio.blobSize;
-          greetingAudioUrlCreated = "yes";
-        } else {
-          audio = getOutputAudio();
-        }
-      } catch (err) {
-        setMobileDebug((prev) => ({
-          ...prev,
-          tapReceived: "yes",
-          audioUrlCreated: "no",
-          audioPlaySuccess: "no",
-          exactError: `mobile audio blob creation failed: ${exactError(err)}`,
-        }));
-        return false;
-      }
+      const audio = getOutputAudio();
       if (!audio) return false;
       try {
         setMobileDebug((prev) => ({
@@ -788,27 +1305,34 @@ export function VoiceGreeting() {
           audioPlaySuccess: "pending",
           exactError: greetingPreloadError || "none",
         }));
-        stopAllAudio();
+        const playbackClaim = claimVoicePlayback();
+        registerVoiceAudio(audio);
         audioRef.current = audio;
         audio.muted = false;
-        audio.volume = 1;
+        audio.volume = 0.82;
         audio.defaultMuted = false;
-        if (!mobileObjectUrl) audio.src = url;
+        audio.src = url;
         audio.preload = "auto";
         audio.setAttribute("playsinline", "");
         (audio as any).playsInline = true;
-        try { audio.load(); } catch {}
+        try {
+          audio.load();
+        } catch {}
         speakingRef.current = true;
 
+        let playbackEndFallback: number | null = null;
         const finish = (ok: boolean, reason?: string) => {
-          speakingRef.current = false;
+          const ownsPlayback = isVoicePlaybackClaimCurrent(playbackClaim);
+          if (ownsPlayback) speakingRef.current = false;
+          if (playbackEndFallback) {
+            window.clearTimeout(playbackEndFallback);
+            playbackEndFallback = null;
+          }
           audio.onplaying = null;
           audio.onended = null;
           audio.onerror = null;
-          if (mobileObjectUrl) {
-            try { URL.revokeObjectURL(mobileObjectUrl); } catch {}
-            mobileObjectUrl = null;
-          }
+          unregisterVoiceAudio(audio);
+          releaseVoicePlaybackClaim(playbackClaim);
           if (ok) {
             setMobileDebug((prev) => ({
               ...prev,
@@ -826,14 +1350,25 @@ export function VoiceGreeting() {
           // ElevenLabs playback blocked mid-gesture on mobile. Show the
           // "Tap to Enable Voice" overlay so a real tap can unlock audio,
           // then Chef will greet with the polished ElevenLabs voice.
-          const mediaErr = audio.error ? { code: audio.error.code, message: audio.error.message } : null;
+          const mediaErr = audio.error
+            ? { code: audio.error.code, message: audio.error.message }
+            : null;
           console.warn("[voice] in-gesture greeting failed", { mediaError: mediaErr });
           setMobileDebug((prev) => ({
             ...prev,
             audioPlaySuccess: "no",
-            exactError: reason || (mediaErr ? `media ${mediaErr.code}: ${mediaErr.message}` : "in-gesture audio play failed"),
+            exactError:
+              reason ||
+              (mediaErr
+                ? `media ${mediaErr.code}: ${mediaErr.message}`
+                : "in-gesture audio play failed"),
           }));
-          pendingSpeechRef.current = { text: GREETING_TEXT, kind: "greeting", audioUrl: greetingAudioUrl ?? undefined, audioBase64: greetingAudioBase64 ?? undefined };
+          pendingSpeechRef.current = {
+            text: GREETING_TEXT,
+            kind: "greeting",
+            audioUrl: greetingAudioUrl ?? undefined,
+            audioBase64: greetingAudioBase64 ?? undefined,
+          };
           setAudioDebug((prev) => [
             ...prev.slice(-6),
             `in-gesture greeting failed${mediaErr ? ` err=${mediaErr.code}` : ""}`,
@@ -846,6 +1381,7 @@ export function VoiceGreeting() {
         }, 5000);
         audio.onplaying = () => {
           playbackBegan = true;
+          playbackEndFallback = window.setTimeout(() => finish(true), 8000);
           setVoiceLoading(false);
           markVoiceAudioUnlocked();
           setAudioUnlocked(true);
@@ -859,8 +1395,14 @@ export function VoiceGreeting() {
           }));
           emitVoiceMeter({ phase: "speaking", note: "welcome audio started" });
         };
-        audio.onended = () => { window.clearTimeout(fallbackFinish); finish(true); };
-        audio.onerror = () => { window.clearTimeout(fallbackFinish); finish(false); };
+        audio.onended = () => {
+          window.clearTimeout(fallbackFinish);
+          finish(true);
+        };
+        audio.onerror = () => {
+          window.clearTimeout(fallbackFinish);
+          finish(false);
+        };
 
         // Call play() synchronously — do not await, do not wrap in a promise
         // chain that yields before this call.
@@ -874,76 +1416,82 @@ export function VoiceGreeting() {
         setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "pending" }));
         if (p && typeof p.then === "function") {
           p.catch((err) => {
-            setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "no", exactError: exactError(err) }));
+            setMobileDebug((prev) => ({
+              ...prev,
+              audioPlaySuccess: "no",
+              exactError: exactError(err),
+            }));
             finish(false, exactError(err));
           });
         }
         return true;
       } catch {
-        setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "no", exactError: "in-gesture audio play threw before audio.play()" }));
+        setMobileDebug((prev) => ({
+          ...prev,
+          audioPlaySuccess: "no",
+          exactError: "in-gesture audio play threw before audio.play()",
+        }));
         return false;
       }
     };
 
-    const playPendingAudioInGesture = (pending: { text: string; kind: "greeting" | "reply"; audioUrl?: string; audioBase64?: string }): boolean => {
-      const url = pending.audioUrl;
-      const mobilePlayback = isMobileVoiceEnvironment() && !!pending.audioBase64;
-      if (!url && !pending.audioBase64) return false;
-      let mobileObjectUrl: string | null = null;
-      let mobileBlobSize: number | null = null;
-      let audio: HTMLAudioElement | null = null;
-      try {
-        if (mobilePlayback && pending.audioBase64) {
-          const mobileAudio = mobileAudioFromBase64(pending.audioBase64);
-          audio = mobileAudio.audio;
-          mobileObjectUrl = mobileAudio.url;
-          mobileBlobSize = mobileAudio.blobSize;
-        } else {
-          audio = getOutputAudio();
-        }
-      } catch (err) {
-        setMobileDebug((prev) => ({
-          ...prev,
-          tapReceived: "yes",
-          audioUrlCreated: "no",
-          audioPlaySuccess: "no",
-          exactError: `mobile audio blob creation failed: ${exactError(err)}`,
-        }));
-        return false;
-      }
+    const playPendingAudioInGesture = (pending: {
+      text: string;
+      kind: "greeting" | "reply";
+      audioUrl?: string;
+      audioBase64?: string;
+    }): boolean => {
+      const url =
+        pending.audioUrl ||
+        (pending.audioBase64 ? `data:audio/mpeg;base64,${pending.audioBase64}` : undefined);
+      if (!url) return false;
+      const audio = getOutputAudio();
       if (!audio) return false;
+      // Close the microphone first: on iPhone a live capture stream owns the
+      // audio session and can silence playback or echo Chef back into itself.
+      try {
+        recognizerRef.current?.stop();
+      } catch {
+        /* ignore */
+      }
       try {
         setMobileDebug((prev) => ({
           ...prev,
           tapReceived: "yes",
-          audioBlobSize: mobileBlobSize ?? prev.audioBlobSize,
-          audioUrlCreated: url || mobileObjectUrl ? "yes" : "no",
+          audioUrlCreated: "yes",
           audioPlayCalled: "no",
           audioPlaySuccess: "pending",
           exactError: "none",
         }));
-        stopAllAudio();
+        const playbackClaim = claimVoicePlayback();
+        registerVoiceAudio(audio);
         audioRef.current = audio;
         audio.muted = false;
-        audio.volume = 1;
+        audio.volume = 0.82;
         audio.defaultMuted = false;
         audio.preload = "auto";
         audio.setAttribute("playsinline", "");
         (audio as any).playsInline = true;
-        if (!mobileObjectUrl && url) audio.src = url;
-        try { audio.load(); } catch {}
+        audio.src = url;
+        try {
+          audio.load();
+        } catch {}
         speakingRef.current = true;
         setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "pending", exactError: "none" }));
 
+        let playbackEndFallback: number | null = null;
         const finish = (ok: boolean, reason?: string) => {
-          speakingRef.current = false;
+          const ownsPlayback = isVoicePlaybackClaimCurrent(playbackClaim);
+          if (ownsPlayback) speakingRef.current = false;
+          if (playbackEndFallback) {
+            window.clearTimeout(playbackEndFallback);
+            playbackEndFallback = null;
+          }
           audio.onplaying = null;
           audio.onended = null;
           audio.onerror = null;
-          if (mobileObjectUrl) {
-            try { URL.revokeObjectURL(mobileObjectUrl); } catch {}
-            mobileObjectUrl = null;
-          }
+          unregisterVoiceAudio(audio);
+          releaseVoicePlaybackClaim(playbackClaim);
           setMobileDebug((prev) => ({
             ...prev,
             audioUnlocked: ok ? "yes" : prev.audioUnlocked,
@@ -965,6 +1513,7 @@ export function VoiceGreeting() {
         };
 
         audio.onplaying = () => {
+          playbackEndFallback = window.setTimeout(() => finish(true), 12000);
           markVoiceAudioUnlocked();
           setAudioUnlocked(true);
           setVoiceLoading(false);
@@ -976,11 +1525,16 @@ export function VoiceGreeting() {
             appAudioVolume: String(audio.volume),
             exactError: "none",
           }));
-          emitVoiceMeter({ phase: "speaking", note: pending.kind === "greeting" ? "welcome audio started" : "reply audio started" });
+          emitVoiceMeter({
+            phase: "speaking",
+            note: pending.kind === "greeting" ? "welcome audio started" : "reply audio started",
+          });
         };
         audio.onended = () => finish(true);
         audio.onerror = () => {
-          const mediaErr = audio.error ? `media ${audio.error.code}: ${audio.error.message}` : "audio error";
+          const mediaErr = audio.error
+            ? `media ${audio.error.code}: ${audio.error.message}`
+            : "audio error";
           finish(false, mediaErr);
         };
         setMobileDebug((prev) => ({
@@ -993,14 +1547,22 @@ export function VoiceGreeting() {
         if (p && typeof p.then === "function") p.catch((err) => finish(false, exactError(err)));
         return true;
       } catch (err) {
-        setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "no", exactError: exactError(err) }));
+        setMobileDebug((prev) => ({
+          ...prev,
+          audioPlaySuccess: "no",
+          exactError: exactError(err),
+        }));
         return false;
       }
     };
 
     const firstTap = (event?: Event) => {
       const target = event?.target as Element | null;
-      if (target && typeof (target as any).closest === "function" && target.closest("[data-mobile-voice-button]")) {
+      if (
+        target &&
+        typeof (target as any).closest === "function" &&
+        target.closest("[data-mobile-voice-button]")
+      ) {
         return;
       }
       if (bootstrapped) return;
@@ -1011,19 +1573,22 @@ export function VoiceGreeting() {
       // Try to play the greeting IN the gesture before any async unlock work.
       // This is the Android-critical path: the first audible play() must happen
       // directly inside the tap handler.
-      const playedGreetingInGesture = !started && playGreetingInGesture();
+      const playedGreetingInGesture =
+        !started && !speakingRef.current && playGreetingInGesture();
       if (!playedGreetingInGesture) {
         // If the real greeting is not preloaded yet, unlock the audio element
         // with a silent sound before asking for microphone permission. This
         // preserves the user gesture for iPhone/Android audio playback.
         void unlockVoiceAudio().then((ok) => {
+          logVoiceStage("audio unlocked", { ok });
           setAudioUnlocked(ok);
           setMobileDebug((prev) => ({
             ...prev,
             audioUnlocked: ok ? "yes" : "no",
             exactError: ok ? prev.exactError : "mobile silent unlock failed",
           }));
-          if (!ok) setMobileDebug((prev) => ({ ...prev, exactError: "mobile silent unlock failed" }));
+          if (!ok)
+            setMobileDebug((prev) => ({ ...prev, exactError: "mobile silent unlock failed" }));
         });
       }
       // Do not request microphone access here. On phones, opening the mic in
@@ -1035,16 +1600,6 @@ export function VoiceGreeting() {
       void runFlow();
     };
 
-    const armFirstTap = () => {
-      bootstrapped = false;
-      // Mobile browsers require a real user gesture before audible AI voice.
-      // Show the required unlock button, while still allowing the fridge tap
-      // event / first page interaction to start the same path.
-      setShowMobileStart(true);
-      window.addEventListener("pointerdown", firstTap, { capture: true, passive: true });
-      window.addEventListener("touchstart", firstTap, { capture: true, passive: true });
-      window.addEventListener("click", firstTap, { capture: true });
-    };
     const removeFirstTap = () => {
       window.removeEventListener("pointerdown", firstTap, { capture: true } as any);
       window.removeEventListener("touchstart", firstTap, { capture: true } as any);
@@ -1061,13 +1616,27 @@ export function VoiceGreeting() {
       pendingSpeechRef.current = null;
       setAudioBlocked(false);
       setShowMobileStart(false);
-      setMobileDebug((prev) => ({ ...prev, tapReceived: "yes", audioPlaySuccess: "pending", exactError: "none" }));
+      setMobileDebug((prev) => ({
+        ...prev,
+        tapReceived: "yes",
+        audioPlaySuccess: "pending",
+        exactError: "none",
+      }));
       if (!pending) {
         void unlockVoiceAudio().then((ok) => {
+          logVoiceStage("audio unlocked", { ok });
           setAudioUnlocked(ok);
           setMobileDebug((prev) => ({ ...prev, audioUnlocked: ok ? "yes" : "no" }));
-          setAudioDebug((prev) => [...prev.slice(-6), ok ? "audio unlocked by tap" : "audio unlock failed"]);
-          if (!ok) setMobileDebug((prev) => ({ ...prev, audioPlaySuccess: "no", exactError: "mobile audio unlock failed" }));
+          setAudioDebug((prev) => [
+            ...prev.slice(-6),
+            ok ? "audio unlocked by tap" : "audio unlock failed",
+          ]);
+          if (!ok)
+            setMobileDebug((prev) => ({
+              ...prev,
+              audioPlaySuccess: "no",
+              exactError: "mobile audio unlock failed",
+            }));
         });
         void runFlow();
         return;
@@ -1087,30 +1656,41 @@ export function VoiceGreeting() {
       }
     };
 
-
     const mobile = isMobileVoiceEnvironment();
 
-    if (mobile) {
-      // Mobile: wait for first tap. Do NOT auto-request mic — that blocks
-      // the whole chain on iOS/Samsung and never plays the welcome.
-      armFirstTap();
-    } else {
-      // Desktop: try auto path (works in Chrome/Edge/Firefox once permission
-      // has been granted before, and prompts otherwise).
-      (async () => {
-        try {
-          void unlockVoiceAudio();
-          const status = await requestMicPermission();
-          setMicState(status);
-          if (status === "granted") {
-            bootstrapped = true;
-            void runFlow();
-            return;
-          }
-        } catch {}
-        armFirstTap();
-      })();
-    }
+    // Silent autoplay recovery. There is no visible voice button any more, so
+    // if the browser blocked the automatic greeting we quietly retry on the
+    // very first real interaction anywhere in the app. Passive + capture so it
+    // never interferes with normal taps, and it removes itself once used.
+    const silentRecover = (event: Event) => {
+      if (!event.isTrusted) return;
+      try {
+        if (pendingSpeechRef.current) unlockHandlerRef.current?.();
+        else if (!bootstrapped) firstTap(event);
+        else void unlockVoiceAudio();
+      } catch {
+        /* fail silently — never block the UI */
+      }
+    };
+    window.addEventListener("pointerdown", silentRecover, { capture: true, passive: true });
+    window.addEventListener("touchstart", silentRecover, { capture: true, passive: true });
+    window.addEventListener("keydown", silentRecover, { capture: true });
+
+
+    // Begin the hands-free loop immediately on every platform. Native builds
+    // can autoplay; mobile browsers are allowed to block the opening greeting,
+    // but that must never prevent automatic microphone activation.
+    (async () => {
+      try {
+        if (!mobile && !isNativeApp()) void requestMicPermission().then(setMicState);
+        else setMicState("granted");
+        bootstrapped = true;
+        void runFlow();
+      } catch {
+        bootstrapped = true;
+        void runFlow();
+      }
+    })();
 
     // Fridge intro tap also counts.
     const onTap = (event: Event) => {
@@ -1122,6 +1702,38 @@ export function VoiceGreeting() {
       firstTap(event);
     };
     window.addEventListener(FRIDGE_INTRO_VOICE_TAP_EVENT, onTap);
+
+    // Companion Mode and its quick actions feed the active background voice
+    // loop directly. A queued prompt runs after any current Chef reply, then
+    // the microphone automatically returns to listening.
+    const onCompanionOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ prefill?: string; autoListen?: boolean }>).detail;
+      const prefill = detail?.prefill?.trim();
+      if (prefill) pendingCompanionPromptRef.current = prefill;
+      setMicState("granted");
+      loopingRef.current = true;
+      if (recognizerRef.current) {
+        try {
+          recognizerRef.current.stop();
+        } catch {}
+      }
+      if (!runningRef.current) void runFlow();
+    };
+    window.addEventListener("tfc:open-chef-voice", onCompanionOpen as EventListener);
+
+    const onVoiceOwnerChange = () => {
+      if (getVoiceSessionOwner() !== "global") {
+        finishActiveListenRef.current?.();
+        try { recognizerRef.current?.stop(); } catch {}
+        recognizerRef.current = null;
+        runningRef.current = false;
+        return;
+      }
+      loopingRef.current = true;
+      lastActivityRef.current = Date.now();
+      void runFlow();
+    };
+    window.addEventListener(VOICE_SESSION_EVENT, onVoiceOwnerChange);
 
     (window as any).__tfcRestartVoiceLoop = () => {
       setMicState("granted");
@@ -1144,7 +1756,9 @@ export function VoiceGreeting() {
       const idle = Date.now() - lastActivityRef.current;
       if (idle < WATCHDOG_MS) return;
       console.warn("[voice] WATCHDOG_RESTART", { idleMs: idle, running: runningRef.current });
-      try { recognizerRef.current?.stop(); } catch {}
+      try {
+        recognizerRef.current?.stop();
+      } catch {}
       recognizerRef.current = null;
       // Break any in-flight listenOnce promise and reset flags so runFlow
       // can be re-entered cleanly.
@@ -1156,80 +1770,73 @@ export function VoiceGreeting() {
     // Also restart when the tab comes back to the foreground; recognition
     // is almost always killed by the OS while backgrounded.
     const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        try {
+          recognizerRef.current?.stop();
+        } catch {}
+        recognizerRef.current = null;
+        runningRef.current = false;
+        stopAllAudio();
+        releaseAudioGate();
+        resetMicActivity();
+        return;
+      }
       if (!loopingRef.current || !bootstrapped) return;
       lastActivityRef.current = 0; // force watchdog next tick
     };
+    const onPageHide = () => {
+      try {
+        recognizerRef.current?.stop();
+      } catch {}
+      recognizerRef.current = null;
+      runningRef.current = false;
+      stopAllAudio();
+      releaseAudioGate();
+      resetMicActivity();
+    };
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pagehide", onPageHide);
 
     return () => {
+      disposed = true;
+      finishActiveListenRef.current?.();
       loopingRef.current = false;
+      runningRef.current = false;
       setShowMobileStart(false);
       startVoiceFromTapRef.current = null;
       unlockHandlerRef.current = null;
       window.clearInterval(watchdog);
+      window.clearTimeout(loadingHintTimer);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pagehide", onPageHide);
       removeFirstTap();
+      window.removeEventListener("pointerdown", silentRecover, { capture: true } as any);
+      window.removeEventListener("touchstart", silentRecover, { capture: true } as any);
+      window.removeEventListener("keydown", silentRecover, { capture: true } as any);
       window.removeEventListener(FRIDGE_INTRO_VOICE_TAP_EVENT, onTap);
-      try { recognizerRef.current?.stop(); } catch {}
-      try { audioRef.current?.pause(); } catch {}
+      window.removeEventListener("tfc:open-chef-voice", onCompanionOpen as EventListener);
+      window.removeEventListener(VOICE_SESSION_EVENT, onVoiceOwnerChange);
+      try {
+        recognizerRef.current?.stop();
+      } catch {}
+      try {
+        audioRef.current?.pause();
+      } catch {}
+      stopAllAudio();
+      releaseAudioGate();
+      resetMicActivity();
+      audioRef.current = null;
       delete (window as any).__tfcRestartVoiceLoop;
     };
-  }, [chatFn, prefs]);
+  }, [chatFn, guestChatFn]);
 
-  const runMobileVoiceButtonGesture = (action: "start" | "unlock") => {
-    const now = Date.now();
-    if (now - mobileButtonGestureAtRef.current < 700) return;
-    mobileButtonGestureAtRef.current = now;
-    if (action === "start") startVoiceFromTapRef.current?.();
-    else unlockHandlerRef.current?.();
-  };
-
-  const mobileDebugPanel = clientReady && voiceDebugMode && isMobileVoiceEnvironment() ? (
-    <div className="mt-4 rounded-2xl bg-white/5 p-3 text-left text-[11px] leading-relaxed text-white/70 ring-1 ring-white/10">
-      <div>device: {mobileDeviceLabel()}</div>
-      <div>tap received: {mobileDebug.tapReceived}</div>
-      <div>microphone permission: {micState}</div>
-      <div>audio unlocked: {audioUnlocked ? "yes" : mobileDebug.audioUnlocked}</div>
-      <div>ElevenLabs request sent: {mobileDebug.elevenLabsRequestSent}</div>
-      <div>ElevenLabs response success: {mobileDebug.elevenLabsResponseSuccess}</div>
-      <div>audio blob size: {mobileDebug.audioBlobSize ?? "none"}</div>
-      <div>audio URL created: {mobileDebug.audioUrlCreated}</div>
-      <div>audio.play called: {mobileDebug.audioPlayCalled}</div>
-      <div>audio play success: {mobileDebug.audioPlaySuccess}</div>
-      <div>app muted: {mobileDebug.appAudioMuted}</div>
-      <div>app volume: {mobileDebug.appAudioVolume}</div>
-      <div>exact error: {mobileDebug.exactError}</div>
-      {audioDebug.map((line, i) => (
-        <div key={i}>• {line}</div>
-      ))}
-    </div>
-  ) : null;
-
-  // "Tap to Enable Voice" overlay — shown on iPhone/Android so a real user
-  // gesture unlocks the exact same ElevenLabs Chef Super J audio used on desktop.
-  // "Getting voice ready…" hint — shown while the ElevenLabs greeting is
-  // still being fetched/prepared, so the user never hears a broken or cut-off
-  // start. Auto-clears once the greeting actually begins playing.
-  const readyHint = voiceLoading && !audioBlocked ? (
-    <div
-      role="status"
-      aria-live="polite"
-      className="pointer-events-none fixed left-1/2 top-4 z-[220] -translate-x-1/2 rounded-full bg-black/70 px-4 py-2 text-sm text-white shadow-lg backdrop-blur"
-    >
-      Getting voice ready…
-    </div>
-  ) : null;
-
-  const persistentMobileDebug = clientReady && voiceDebugMode && isMobileVoiceEnvironment() ? (
-    <details open className="fixed bottom-3 left-3 z-[190] max-w-[calc(100vw-1.5rem)] rounded-2xl bg-neutral-950/85 px-3 py-2 text-[11px] text-white/80 shadow-xl ring-1 ring-white/10 backdrop-blur">
-      <summary className="cursor-pointer font-semibold text-white">Voice debug</summary>
-      <div className="mt-2 space-y-0.5">
+  const mobileDebugPanel =
+    clientReady && voiceDebugMode && isMobileVoiceEnvironment() ? (
+      <div className="mt-4 rounded-2xl bg-white/5 p-3 text-left text-[11px] leading-relaxed text-white/70 ring-1 ring-white/10">
         <div>device: {mobileDeviceLabel()}</div>
         <div>tap received: {mobileDebug.tapReceived}</div>
         <div>microphone permission: {micState}</div>
         <div>audio unlocked: {audioUnlocked ? "yes" : mobileDebug.audioUnlocked}</div>
-        <div>greeting audio ready: {greetingReady ? "yes" : "no"}</div>
         <div>ElevenLabs request sent: {mobileDebug.elevenLabsRequestSent}</div>
         <div>ElevenLabs response success: {mobileDebug.elevenLabsResponseSuccess}</div>
         <div>audio blob size: {mobileDebug.audioBlobSize ?? "none"}</div>
@@ -1239,85 +1846,63 @@ export function VoiceGreeting() {
         <div>app muted: {mobileDebug.appAudioMuted}</div>
         <div>app volume: {mobileDebug.appAudioVolume}</div>
         <div>exact error: {mobileDebug.exactError}</div>
+        {audioDebug.map((line, i) => (
+          <div key={i}>• {line}</div>
+        ))}
       </div>
-    </details>
-  ) : null;
+    ) : null;
 
+  // "Tap to Enable Voice" overlay — shown on iPhone/Android so a real user
+  // gesture unlocks the exact same ElevenLabs Chef Super J audio used on desktop.
+  // "Getting voice ready…" hint — shown while the ElevenLabs greeting is
+  // still being fetched/prepared, so the user never hears a broken or cut-off
+  // start. Auto-clears once the greeting actually begins playing.
+  const readyHint = null;
 
-  if (showMobileStart) {
-    return (
-      <>
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+16px)] z-[210] flex justify-center px-4">
-          <button
-            type="button"
-            data-mobile-voice-button="true"
-            disabled={!greetingReady}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (!greetingReady) return;
-              runMobileVoiceButtonGesture("start");
-            }}
-            onTouchStart={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (!greetingReady) return;
-              runMobileVoiceButtonGesture("start");
-            }}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (!greetingReady) return;
-              runMobileVoiceButtonGesture("start");
-            }}
-            className="pointer-events-auto rounded-full bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-lg ring-1 ring-black/10 active:scale-95 disabled:opacity-60"
-          >
-            {greetingReady ? "🔊 Enable Voice" : "Getting voice ready…"}
-          </button>
+  const persistentMobileDebug =
+    clientReady && voiceDebugMode && isMobileVoiceEnvironment() ? (
+      <details
+        open
+        className="fixed bottom-3 left-3 z-[190] max-w-[calc(100vw-1.5rem)] rounded-2xl bg-neutral-950/85 px-3 py-2 text-[11px] text-white/80 shadow-xl ring-1 ring-white/10 backdrop-blur"
+      >
+        <summary className="cursor-pointer font-semibold text-white">Voice debug</summary>
+        <div className="mt-2 space-y-0.5">
+          <div>device: {mobileDeviceLabel()}</div>
+          <div>tap received: {mobileDebug.tapReceived}</div>
+          <div>microphone permission: {micState}</div>
+          <div>audio unlocked: {audioUnlocked ? "yes" : mobileDebug.audioUnlocked}</div>
+          <div>greeting audio ready: {greetingReady ? "yes" : "no"}</div>
+          <div>ElevenLabs request sent: {mobileDebug.elevenLabsRequestSent}</div>
+          <div>ElevenLabs response success: {mobileDebug.elevenLabsResponseSuccess}</div>
+          <div>audio blob size: {mobileDebug.audioBlobSize ?? "none"}</div>
+          <div>audio URL created: {mobileDebug.audioUrlCreated}</div>
+          <div>audio.play called: {mobileDebug.audioPlayCalled}</div>
+          <div>audio play success: {mobileDebug.audioPlaySuccess}</div>
+          <div>app muted: {mobileDebug.appAudioMuted}</div>
+          <div>app volume: {mobileDebug.appAudioVolume}</div>
+          <div>exact error: {mobileDebug.exactError}</div>
         </div>
-        {mobileDebugPanel}
-      </>
-    );
-  }
+      </details>
+    ) : null;
 
+  // Small, discreet mute icon in the top-right corner. On mobile web this
+  // also acts as the guaranteed user-gesture surface: if the visitor hasn't
+  // yet tapped anywhere else, tapping this icon unlocks audio and kicks off
+  // the ElevenLabs Chef Super J greeting → listen → answer loop. After the
+  // greeting is playing, it toggles mute/unmute. Never a large button.
+  // No visible mute/voice button: audio starts automatically, and if a browser
+  // blocks autoplay we silently recover on the first normal interaction.
+  const muteIcon = null;
+  void audioBlocked;
+  void audioUnlocked;
 
-  if (audioBlocked) {
-
-    return (
-      <>
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+16px)] z-[210] flex justify-center px-4">
-          <button
-            type="button"
-            data-mobile-voice-button="true"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              runMobileVoiceButtonGesture("unlock");
-            }}
-            onTouchStart={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              runMobileVoiceButtonGesture("unlock");
-            }}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              runMobileVoiceButtonGesture("unlock");
-            }}
-            className="pointer-events-auto rounded-full bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-lg ring-1 ring-black/10 active:scale-95"
-          >
-            🔊 Enable Voice
-          </button>
-        </div>
-        {mobileDebugPanel}
-      </>
-    );
-  }
-
-
-  // Never render a blocking mic-permission popup. If the mic is denied or
-  // unsupported, silently skip — permission will be requested when the user
-  // actually starts talking.
-  return <>{readyHint}{persistentMobileDebug}</>;
-
+  return (
+    <>
+      {readyHint}
+      {muteIcon}
+      {mobileDebugPanel}
+      {persistentMobileDebug}
+    </>
+  );
 }
+

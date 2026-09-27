@@ -10,7 +10,7 @@ export const Route = createFileRoute("/checkout/return")({
   validateSearch: (search: Record<string, unknown>): { session_id?: string } => ({
     session_id: typeof search.session_id === "string" ? search.session_id : undefined,
   }),
-  head: () => ({ meta: [{ title: "Welcome aboard | The Fridge and Cupboard" }] }),
+  head: () => ({ meta: [{ title: "Welcome aboard | The Fridge and Cupboard" }, { name: "robots", content: "noindex, nofollow" }] }),
   component: CheckoutReturn,
 });
 

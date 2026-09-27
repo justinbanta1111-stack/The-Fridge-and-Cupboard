@@ -38,15 +38,17 @@ export function HealthSpecialNeedsStrip() {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-        {ITEMS.map(({ label, sub, to, search, Icon }) => (
+        {ITEMS.map(({ label, sub, to, search, Icon }, idx) => (
           <Link
             key={label}
             to={to}
             search={search as any}
-            className="group flex flex-col items-start gap-1 rounded-xl border border-border/60 bg-background/60 p-3 transition hover:border-primary/50 hover:bg-primary/5"
+            data-reveal
+            style={{ ["--reveal-delay" as any]: `${(idx % 4) * 55}ms` }}
+            className="press-lift group flex flex-col items-start gap-1 rounded-xl border border-border/60 bg-background/60 p-2.5 hover:border-primary/50 hover:bg-primary/5 sm:p-3"
           >
-            <Icon className="h-5 w-5 text-primary" />
-            <div className="text-sm font-semibold leading-tight">{label}</div>
+            <Icon className="icon-rise h-5 w-5 text-primary" />
+            <div className="text-[13px] font-semibold leading-tight sm:text-sm">{label}</div>
             <div className="text-[11px] text-muted-foreground">{sub}</div>
           </Link>
         ))}

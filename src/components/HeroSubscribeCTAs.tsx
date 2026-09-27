@@ -4,6 +4,8 @@ import { Crown, Sparkles, LogIn, Gift } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { useCanSell } from "@/hooks/use-store-purchases";
+import { useSubscription } from "@/hooks/use-subscription";
 import {
   closeInstallModal,
   consumePendingCheckout,
@@ -13,8 +15,10 @@ import {
 
 export function HeroSubscribeCTAs() {
   const [showPlans, setShowPlans] = useState(false);
+  const canSell = useCanSell();
   const { openCheckout, checkoutElement } = useStripeCheckout();
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const { isActive: hasSubscription } = useSubscription();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -70,6 +74,9 @@ export function HeroSubscribeCTAs() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Signed-in members never see sign-in / trial / pricing blocks.
+  if (!canSell || hasSubscription || user) return null;
+
   return (
     <div className="mt-3 space-y-3">
       {/* Sign In — most prominent when not logged in */}
@@ -92,6 +99,9 @@ export function HeroSubscribeCTAs() {
         <Gift className="h-5 w-5" />
         Start Free 3-Day Trial
       </button>
+      <p className="-mt-1 text-center text-sm font-semibold text-white/95">
+        Then just $3.99/month. Cancel anytime.
+      </p>
 
       {/* See Plans & Pricing — secondary, no prices until tapped */}
       {!showPlans ? (

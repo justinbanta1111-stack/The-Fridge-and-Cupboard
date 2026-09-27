@@ -5,6 +5,9 @@ import { SiteNav } from "@/components/SiteNav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { useNavigate } from "@tanstack/react-router";
+import { deleteMyAccount } from "@/lib/account.functions";
 import { toast } from "sonner";
 
 const UPDATED = "June 13, 2026";
@@ -14,6 +17,7 @@ const CONFIRM_PHRASE = "DELETE MY ACCOUNT";
 export const Route = createFileRoute("/delete-account")({
   head: () => ({
     meta: [
+      { name: "robots", content: "noindex, nofollow" },
       { title: "Delete Account — The Fridge and Cupboard" },
       {
         name: "description",
@@ -34,6 +38,8 @@ export const Route = createFileRoute("/delete-account")({
 });
 
 function DeleteAccountPage() {
+  const navigate = useNavigate();
+  const deleteFn = useServerFn(deleteMyAccount);
   const [email, setEmail] = useState("");
   const [reason, setReason] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -60,6 +66,20 @@ function DeleteAccountPage() {
       return;
     }
     setSubmitting(true);
+    // Signed in: delete right here, in the app, with no email round trip.
+    if (signedIn) {
+      try {
+        await deleteFn({});
+        await supabase.auth.signOut();
+        toast.success("Your account and data have been permanently deleted.");
+        navigate({ to: "/", replace: true });
+      } catch (err: any) {
+        toast.error(err?.message ?? "We couldn't delete the account. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     const subject = encodeURIComponent("Account deletion request");
     const body = encodeURIComponent(
       `Hello,\n\nI'm requesting permanent deletion of my account and personal data.\n\n` +
@@ -191,7 +211,13 @@ function DeleteAccountPage() {
               className="w-full gap-2"
             >
               <Trash2 className="h-4 w-4" />
-              {submitting ? "Opening email…" : "Send deletion request"}
+              {submitting
+                ? signedIn
+                  ? "Deleting…"
+                  : "Opening email…"
+                : signedIn
+                  ? "Delete my account now"
+                  : "Send deletion request"}
             </Button>
 
             <p className="text-center text-xs text-muted-foreground">

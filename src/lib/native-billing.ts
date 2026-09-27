@@ -1,26 +1,28 @@
 /**
- * Native In-App Purchase placeholder.
+ * Native In-App Purchase bridge (Apple / Google).
  *
- * The web build uses Stripe Checkout (see `src/utils/payments.functions.ts`).
+ * The web build uses Stripe Checkout (`src/utils/payments.functions.ts`).
  * Apple and Google REQUIRE their own billing for digital subscriptions sold
- * inside the native iOS / Android apps — Stripe is not allowed there.
+ * inside the native apps, so every purchase started inside the Capacitor
+ * shell goes through this module instead of Stripe.
  *
- * This module is a typed placeholder so the rest of the app can already call
- * `startNativePurchase()` / `restoreNativePurchases()` / `getNativeEntitlement()`
- * from the native build. The functions intentionally throw so we never
- * silently grant entitlements before real billing is wired up.
+ * Implementation notes
+ * --------------------
+ * The store SDK is loaded lazily and defensively: if the RevenueCat plugin
+ * (`@revenuecat/purchases-capacitor`) is installed in the native build, we use
+ * it. If it is not present (web build, or a native build made before the
+ * plugin was added) every call resolves/throws with a clear, user-readable
+ * message instead of crashing — Apple rejects apps that crash on a tap.
  *
- * When you are ready to ship native billing, install one of:
- *   - `@revenuecat/purchases-capacitor`  (recommended — unifies iOS + Android)
- *   - `@capacitor-community/in-app-purchases`
- *
- * Then implement the three functions below. Keep the same signatures so the
- * UI (Pricing page, Restore button, subscription gate) does not have to change.
- *
- * IMPORTANT: keep the existing Stripe flow working on the web build. Detect
- * the native runtime with `Capacitor.isNativePlatform()` and only call these
- * functions when running inside the iOS/Android shell.
+ * To finish wiring real purchases:
+ *   1. `bun add @revenuecat/purchases-capacitor` and `npx cap sync ios`
+ *   2. Create the two auto-renewing subscriptions in App Store Connect using
+ *      the product IDs below and attach them to a RevenueCat offering.
+ *   3. Set `VITE_REVENUECAT_IOS_KEY` (and `VITE_REVENUECAT_ANDROID_KEY`).
+ * No other file has to change.
  */
+
+import { isIosApp, isNativeApp, nativePlatform } from "@/lib/native-runtime";
 
 export type NativeProductId =
   | "pro.standard.monthly" // $3.99 / month — App Store Connect ID
@@ -32,30 +34,126 @@ export type NativeEntitlement = {
   expiresAt: string | null; // ISO timestamp from the receipt
 };
 
-const NOT_WIRED =
-  "Native billing is not wired up yet. Install @revenuecat/purchases-capacitor (or @capacitor-community/in-app-purchases), then implement src/lib/native-billing.ts. Web build continues to use Stripe.";
+export const NATIVE_PRODUCTS: Record<
+  NativeProductId,
+  { name: string; price: string; period: string; trial: string }
+> = {
+  "pro.standard.monthly": {
+    name: "Standard",
+    price: "$3.99",
+    period: "per month",
+    trial: "3-day free trial, then $3.99 per month",
+  },
+  "pro.premium.monthly": {
+    name: "Premium",
+    price: "$5.99",
+    period: "per month",
+    trial: "3-day free trial, then $5.99 per month",
+  },
+};
+
+const INACTIVE: NativeEntitlement = { active: false, productId: null, expiresAt: null };
+
+export const STORE_UNAVAILABLE =
+  "The App Store isn't available right now. Please check your connection and try again.";
+
+type PurchasesModule = any;
+
+let sdkPromise: Promise<PurchasesModule | null> | null = null;
+
+async function loadSdk(): Promise<PurchasesModule | null> {
+  if (!isNativeApp()) return null;
+  if (!sdkPromise) {
+    sdkPromise = (async () => {
+      try {
+        const specifier = "@revenuecat/purchases-capacitor";
+        const mod: any = await import(/* @vite-ignore */ specifier);
+        const Purchases = mod?.Purchases ?? mod?.default?.Purchases;
+        if (!Purchases) return null;
+        const apiKey = isIosApp()
+          ? import.meta.env["VITE_REVENUECAT_IOS_KEY"]
+          : import.meta.env["VITE_REVENUECAT_ANDROID_KEY"];
+        if (!apiKey) return null;
+        await Purchases.configure({ apiKey });
+        return Purchases;
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return sdkPromise;
+}
+
+/** True when real store billing can actually run on this device. */
+export async function isNativeBillingReady(): Promise<boolean> {
+  return (await loadSdk()) !== null;
+}
+
+function toEntitlement(info: any): NativeEntitlement {
+  const entitlements = info?.customerInfo?.entitlements?.active ?? info?.entitlements?.active ?? {};
+  const first: any = Object.values(entitlements)[0];
+  if (!first) return INACTIVE;
+  const productId = String(first.productIdentifier ?? "") as NativeProductId;
+  return {
+    active: true,
+    productId: productId in NATIVE_PRODUCTS ? productId : null,
+    expiresAt: first.expirationDate ?? null,
+  };
+}
 
 /** Launch the platform purchase sheet for the given subscription. */
-export async function startNativePurchase(_productId: NativeProductId): Promise<NativeEntitlement> {
-  throw new Error(NOT_WIRED);
+export async function startNativePurchase(productId: NativeProductId): Promise<NativeEntitlement> {
+  const Purchases = await loadSdk();
+  if (!Purchases) throw new Error(STORE_UNAVAILABLE);
+  const { products } = await Purchases.getProducts({ productIdentifiers: [productId] });
+  const product = products?.[0];
+  if (!product) throw new Error("That subscription isn't available on this device right now.");
+  const result = await Purchases.purchaseStoreProduct({ product });
+  return toEntitlement(result);
 }
 
 /** Apple + Google require a visible "Restore Purchases" entry in the UI. */
 export async function restoreNativePurchases(): Promise<NativeEntitlement> {
-  throw new Error(NOT_WIRED);
+  const Purchases = await loadSdk();
+  if (!Purchases) {
+    // Not an error state for the user: nothing to restore on this device.
+    if (!isNativeApp()) return INACTIVE;
+    throw new Error(STORE_UNAVAILABLE);
+  }
+  const result = await Purchases.restorePurchases();
+  return toEntitlement(result);
 }
 
-/** Read the cached entitlement from the billing SDK (no network round-trip). */
+/** Read the cached entitlement from the billing SDK (no purchase sheet). */
 export async function getNativeEntitlement(): Promise<NativeEntitlement> {
-  return { active: false, productId: null, expiresAt: null };
+  const Purchases = await loadSdk();
+  if (!Purchases) return INACTIVE;
+  try {
+    const info = await Purchases.getCustomerInfo();
+    return toEntitlement(info);
+  } catch {
+    return INACTIVE;
+  }
+}
+
+/** Deep link to the platform subscription management screen. */
+export function nativeManageSubscriptionsUrl(): string {
+  return nativePlatform() === "android"
+    ? "https://play.google.com/store/account/subscriptions"
+    : "https://apps.apple.com/account/subscriptions";
 }
 
 /**
  * Apple/Google product ID ⇄ internal price lookup key used by the Stripe
- * webhook (`stripe-subscriptions` knowledge). Keep these in sync so the
- * subscription gate works the same on web and native.
+ * webhook. Keep these in sync so the subscription gate works the same on
+ * web and native.
  */
 export const NATIVE_TO_INTERNAL: Record<NativeProductId, "pro_standard_monthly" | "pro_premium_monthly"> = {
   "pro.standard.monthly": "pro_standard_monthly",
   "pro.premium.monthly": "pro_premium_monthly",
 };
+
+/** Map a Stripe price lookup key used across the web UI to a store product. */
+export function nativeProductForPriceId(priceId: string): NativeProductId {
+  return /premium/i.test(priceId) ? "pro.premium.monthly" : "pro.standard.monthly";
+}

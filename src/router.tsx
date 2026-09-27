@@ -2,13 +2,12 @@ import { QueryClient } from "@tanstack/react-query";
 import { createRouter, useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import * as React from "react";
-import { canSelfHeal, describeLaunchError, selfHealAndReload } from "./lib/launch-recovery";
+import { canSelfHeal, selfHealAndReload } from "./lib/launch-recovery";
 import { isNativeApp } from "./lib/native-runtime";
 
 function DefaultError({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  const details = describeLaunchError(error);
   React.useEffect(() => {
     // Installed app only: clear this app's own saved data once and reload so a
     // full or damaged store cannot keep the first screen from opening.
@@ -37,12 +36,6 @@ function DefaultError({ error, reset }: { error: Error; reset: () => void }) {
             Reset and reopen
           </button>
         </div>
-        <details className="mt-5 text-left">
-          <summary className="cursor-pointer text-xs text-stone-500">Details</summary>
-          <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-stone-100 p-3 text-[11px] leading-snug text-stone-600">
-            {details}
-          </pre>
-        </details>
       </div>
     </div>
   );

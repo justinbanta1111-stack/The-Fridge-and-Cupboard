@@ -41,7 +41,7 @@ Add these under **Settings → Secrets and variables → Actions → New reposit
 
 | Secret | Value |
 |---|---|
-| `APP_STORE_CONNECT_API_KEY_ID` | Key ID from step 1c (e.g. `ABC123XYZ9`) |
+| `ASC_KEY_ID` | Key ID from step 1c (e.g. `ABC123XYZ9`) |
 | `APP_STORE_CONNECT_API_ISSUER_ID` | Issuer ID UUID from step 1c |
 | `APP_STORE_CONNECT_API_KEY_P8` | Full contents of `AuthKey_XXXX.p8` (paste including `-----BEGIN PRIVATE KEY-----` lines) |
 | `IOS_DIST_CERT_P12_BASE64` | Base64 output from step 1a |

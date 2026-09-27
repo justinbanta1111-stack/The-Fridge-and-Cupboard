@@ -9,19 +9,12 @@ const REQUIRED_SECRETS: Record<string, { required: string[]; optional: string[] 
     required: [
       // Identity / bundle
       'IOS_TEAM_ID',
-      'IOS_BUNDLE_ID',
-      'IOS_SIGNING_IDENTITY',
-      // Signing cert + provisioning
-      'IOS_CERTIFICATE_BASE64',
-      'IOS_CERTIFICATE_PASSWORD',
-      'IOS_KEYCHAIN_PASSWORD',
-      'IOS_PROVISIONING_PROFILE_BASE64',
       // App Store Connect API key (TestFlight upload)
-      'APP_STORE_CONNECT_API_KEY_ID',
+      'ASC_KEY_ID',
       'APP_STORE_CONNECT_API_ISSUER_ID',
-      'APP_STORE_CONNECT_API_KEY_BASE64',
+      'APP_STORE_CONNECT_API_KEY_P8',
     ],
-    optional: ['IOS_APS_ENVIRONMENT'],
+    optional: ['IOS_BUNDLE_ID'],
   },
   'android-play-internal.yml': {
     required: [

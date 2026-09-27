@@ -6,7 +6,8 @@ export function KitchenMagicStrip() {
     <section className="mt-4">
       <Link
         to="/kitchen-magic"
-        className="group flex items-center gap-3 rounded-2xl border border-border bg-gradient-to-r from-amber-400/10 via-rose-500/10 to-fuchsia-500/10 p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md"
+        data-reveal
+        className="press-lift sheen sheen-slow group flex items-center gap-3 rounded-2xl border border-border bg-gradient-to-r from-amber-400/10 via-rose-500/10 to-fuchsia-500/10 p-3 shadow-sm hover:border-primary/40 hover:shadow-md"
       >
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-amber-400 to-rose-500 text-white shadow-md">
           <Sparkles className="h-5 w-5" />

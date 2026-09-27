@@ -18,11 +18,14 @@ import { FRIDGE_INTRO_VOICE_TAP_EVENT } from "@/lib/voice-assistant";
  * Plays every time the homepage loads.
  */
 
-const CLOSED_HOLD_MS = 120;     // brief pause with closed doors
-const DOOR_DURATION_MS = 2200;  // slower, more dramatic door opening (unchanged)
-const OPEN_HOLD_MS = 7400;      // hold the open fridge ~2s longer before transitioning
+const DOOR_DURATION_MS = 3000;  // slower, more premium door opening
+const OPEN_HOLD_MS = 900;       // linger once fully open so the moment lands (~3.9s total)
 const FADE_MS = 1600;           // slower, smoother cross-fade into the main page
+const PRELOAD_TIMEOUT_MS = 700; // never wait longer than this for the interior photo to decode
+
 const INTRO_DISMISSED_EVENT = "tfc:fridge-intro-dismissed";
+export const FRIDGE_INTRO_DOORS_OPENING_EVENT = "tfc:fridge-intro-doors-opening";
+
 
 
 
@@ -38,25 +41,94 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
   const [visible] = useState(true);
 
   useEffect(() => {
-    const tStartOpening = setTimeout(() => {
-      setDoorMotionStarted(true);
-    }, CLOSED_HOLD_MS);
-    const tOpen = setTimeout(() => {
-      setDoorsOpen(true);
-      // Auto-trigger the silent background voice flow when the fridge opens.
-      // No button, no overlay — VoiceGreeting handles greeting → listen → reply.
-      try {
-        window.dispatchEvent(
-          new CustomEvent(FRIDGE_INTRO_VOICE_TAP_EVENT, {
-            detail: { source: "auto-doors-open", tappedAt: Date.now() },
-          }),
-        );
-      } catch {}
-    }, CLOSED_HOLD_MS + DOOR_DURATION_MS);
-    const tCtas = setTimeout(dismiss, CLOSED_HOLD_MS + DOOR_DURATION_MS + OPEN_HOLD_MS);
-    return () => { clearTimeout(tStartOpening); clearTimeout(tOpen); clearTimeout(tCtas); };
+    let cancelled = false;
+    // Mark the intro as active so the voice greeting can align its
+    // playback start to the moment the doors begin moving.
+    try { (window as any).__tfcFridgeIntroActive = true; } catch {}
+    const rememberFirstInteraction = () => {
+      try { (window as any).__tfcMobileVoiceFirstInteraction = Date.now(); } catch {}
+    };
+    window.addEventListener("pointerdown", rememberFirstInteraction, { capture: true, passive: true });
+    window.addEventListener("touchstart", rememberFirstInteraction, { capture: true, passive: true });
+    window.addEventListener("click", rememberFirstInteraction, { capture: true });
+    let tOpen: ReturnType<typeof setTimeout> | undefined;
+    let tCtas: ReturnType<typeof setTimeout> | undefined;
+    let raf1 = 0;
+    let raf2 = 0;
+    let started = false;
+
+    const beginOpening = () => {
+      if (started || cancelled) return;
+      started = true;
+      // Two frames so the closed doors are painted before the transition
+      // begins — otherwise iOS Safari skips straight to the open state.
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          if (cancelled) return;
+          setDoorMotionStarted(true);
+          // Fire the moment door motion begins so the rest of the app knows the
+          // refrigerator has started opening.
+          try {
+            (window as any).__tfcFridgeDoorsOpening = true;
+            window.dispatchEvent(
+              new CustomEvent(FRIDGE_INTRO_DOORS_OPENING_EVENT, {
+                detail: { at: Date.now() },
+              }),
+            );
+          } catch {}
+          // The welcome voice starts on the very same frame the doors begin
+          // moving — never after the animation finishes.
+          try {
+            (window as any).__tfcFridgeVoiceReady = true;
+            window.dispatchEvent(
+              new CustomEvent(FRIDGE_INTRO_VOICE_TAP_EVENT, {
+                detail: { source: "doors-opening", tappedAt: Date.now() },
+              }),
+            );
+          } catch {}
+          tOpen = setTimeout(() => setDoorsOpen(true), DOOR_DURATION_MS);
+          tCtas = setTimeout(dismiss, DOOR_DURATION_MS + OPEN_HOLD_MS + 250);
+        });
+      });
+    };
+
+    // Decode the interior photo first so the image isn't being decoded on the
+    // main thread while the doors swing — that decode is what made the
+    // animation stutter or stall mid-motion on iPhone. Never block for long.
+    const preloadGuard = setTimeout(beginOpening, PRELOAD_TIMEOUT_MS);
+    try {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = fridgeInteriorAsset.url;
+      const done = () => {
+        clearTimeout(preloadGuard);
+        beginOpening();
+      };
+      if (typeof img.decode === "function") {
+        img.decode().then(done).catch(done);
+      } else {
+        img.onload = done;
+        img.onerror = done;
+      }
+    } catch {
+      clearTimeout(preloadGuard);
+      beginOpening();
+    }
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      clearTimeout(preloadGuard);
+      if (tOpen) clearTimeout(tOpen);
+      if (tCtas) clearTimeout(tCtas);
+      window.removeEventListener("pointerdown", rememberFirstInteraction, { capture: true } as any);
+      window.removeEventListener("touchstart", rememberFirstInteraction, { capture: true } as any);
+      window.removeEventListener("click", rememberFirstInteraction, { capture: true } as any);
+      try { (window as any).__tfcFridgeIntroActive = false; } catch {}
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   function dismiss() {
     setClosing(true);
@@ -100,50 +172,62 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
 
 
 
-      <div className="absolute left-1/2 top-1 sm:top-1 -translate-x-1/2 z-[115] w-full max-w-3xl pointer-events-none">
+      <div data-intro-header="" className="absolute left-1/2 top-[calc(env(safe-area-inset-top,0px)+6px)] sm:top-[64px] -translate-x-1/2 z-[115] w-full max-w-3xl pointer-events-none">
         <div
-          className="relative mx-2 mt-0 overflow-hidden rounded-xl px-2 py-1 sm:mt-1 sm:px-5 sm:py-2 shadow-2xl"
+          className="relative mx-3 overflow-hidden rounded-xl px-3 py-2 sm:mx-4 sm:px-4 sm:py-2.5 shadow-xl"
           style={{
             background:
               "linear-gradient(100deg, #001f5c 0%, #003d99 25%, #0047AB 45%, #0066cc 70%, #B21E1E 100%)",
             boxShadow:
-              "0 12px 44px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 0 0 1.5px #FFC72C",
+              "0 10px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 0 0 1.5px #FFC72C",
           }}
         >
           <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-[2px]"
+            className="pointer-events-none absolute inset-x-0 top-0 h-[1.5px]"
             style={{ background: "linear-gradient(90deg, transparent, #FFD24A 30%, #FFC72C 70%, transparent)" }}
           />
           <div
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px]"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-[1.5px]"
             style={{ background: "linear-gradient(90deg, transparent, #FFC72C 30%, #FFD24A 70%, transparent)" }}
           />
-          <div className="flex items-center gap-2 sm:gap-5 pr-14 sm:pr-0">
+          <div className="flex items-center gap-2.5 sm:gap-4">
             <div
               className="relative shrink-0 rounded-full p-[2px]"
               style={{
                 background: "conic-gradient(from 140deg, #FFD24A, #FFC72C, #E0A800, #FFD24A)",
-                boxShadow: "0 6px 16px rgba(0,0,0,0.55)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
               }}
             >
-              <BrandMark className="block h-[42px] w-[42px] rounded-full bg-white object-contain ring-2 ring-[#0047AB]/70 sm:h-[76px] sm:w-[76px]" />
-            </div>
-            <div className="min-w-0 flex-1 text-left">
               <div
-                className="font-display text-[0.68rem] sm:text-[0.88rem] font-extrabold tracking-[0.28em] text-[#FFD24A]"
-                style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}
+                className="sm:!h-[152px] sm:!w-[152px]"
+                style={{ height: "clamp(112px, 31vw, 140px)", width: "clamp(112px, 31vw, 140px)" }}
+              >
+                <BrandMark className="block h-full w-full rounded-full bg-white object-contain ring-2 ring-[#0047AB]/70" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1 pr-8 text-left sm:pr-10">
+              <div
+                className="font-display font-extrabold tracking-[0.14em] sm:tracking-[0.2em] text-[#FFD24A]"
+                style={{ fontSize: "clamp(0.65rem, 2.6vw, 0.85rem)", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}
               >
                 CHEF&nbsp;SUPER&nbsp;J
               </div>
               <h1
-                className="mt-0 font-display text-[1.05rem] sm:text-[2.05rem] font-black tracking-tight leading-[1.05] text-white uppercase"
-                style={{ textShadow: "0 2px 10px rgba(0,0,0,0.8)" }}
+                className="mt-0.5 font-display font-black tracking-normal leading-[1.05] text-white uppercase text-center"
+                style={{
+                  fontSize: "clamp(1.25rem, 5.8vw, 2.05rem)",
+                  fontWeight: 900,
+                  textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+                  whiteSpace: "nowrap",
+                }}
               >
-                The Fridge <span className="text-[#FFC72C]">&amp;</span> Cupboard
+                The<br />
+                Fridge <span className="text-[#FFC72C]">&amp;</span><br />
+                Cupboard
               </h1>
               <p
-                className="mt-0.5 text-[10px] sm:text-[0.95rem] font-bold leading-snug text-white/95 tracking-wide"
-                style={{ textShadow: "0 1px 4px rgba(0,0,0,0.75)" }}
+                className="mt-1 font-semibold leading-snug text-white/95 tracking-wide"
+                style={{ fontSize: "clamp(0.75rem, 3.2vw, 0.95rem)", textShadow: "0 1px 3px rgba(0,0,0,0.75)" }}
               >
                 Saving <span className="text-[#A7F3A7]">Food</span>. Saving{" "}
                 <span className="text-[#FFC72C]">Money</span>. Saving{" "}
@@ -153,18 +237,21 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
           </div>
         </div>
 
-
       </div>
 
       {/* Doors */}
-      <div className="absolute left-1/2 -translate-x-1/2 top-[88px] bottom-[24px] sm:top-[132px] sm:bottom-[24px] w-[85%] max-w-[360px] sm:max-w-[440px] flex z-[95] pointer-events-none" style={{ marginLeft: 0, marginRight: 0 }}>
+      <div data-intro-fridge="" className="absolute left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top,0px)+205px)] bottom-[24px] sm:top-[274px] sm:bottom-[24px] w-[85%] max-w-[360px] sm:max-w-[440px] flex z-[95] pointer-events-none" style={{ marginLeft: 0, marginRight: 0 }}>
         <div
           className="relative h-full w-1/2 origin-left"
           style={{
-            transform: doorMotionStarted ? "perspective(2000px) rotateY(-100deg)" : "perspective(2000px) rotateY(0deg)",
+            transform: doorMotionStarted
+              ? "perspective(2000px) translateZ(0) rotateY(-100deg)"
+              : "perspective(2000px) translateZ(0) rotateY(0deg)",
             transition: `transform ${DOOR_DURATION_MS}ms cubic-bezier(0.45,0.05,0.25,1)`,
             backfaceVisibility: "hidden",
             transformStyle: "preserve-3d",
+            willChange: "transform",
+            contain: "paint" as any,
           }}
         >
           <DoorFace side="left" />
@@ -172,17 +259,29 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
         <div
           className="relative h-full w-1/2 origin-right"
           style={{
-            transform: doorMotionStarted ? "perspective(2000px) rotateY(100deg)" : "perspective(2000px) rotateY(0deg)",
+            transform: doorMotionStarted
+              ? "perspective(2000px) translateZ(0) rotateY(100deg)"
+              : "perspective(2000px) translateZ(0) rotateY(0deg)",
             transition: `transform ${DOOR_DURATION_MS}ms cubic-bezier(0.45,0.05,0.25,1)`,
             backfaceVisibility: "hidden",
             transformStyle: "preserve-3d",
+            willChange: "transform",
+            contain: "paint" as any,
           }}
         >
           <DoorFace side="right" />
         </div>
       </div>
 
-      {/* Intro intentionally clean below the fridge — no emblem, no caption */}
+      {/* Warm welcome line — quiet, no pressure */}
+      {doorMotionStarted && (
+        <p
+          className="fc-welcome-line pointer-events-none absolute inset-x-0 bottom-[30px] z-[120] px-6 text-center font-display text-[13px] font-medium leading-snug text-stone-700 sm:text-[15px]"
+          style={{ textShadow: "0 1px 2px rgba(255,255,255,0.85)" }}
+        >
+          Welcome home. Let's see what we can create together.
+        </p>
+      )}
 
       <style>{`
         @keyframes fc-glow { 0% { opacity: 0; } 100% { opacity: 1; } }
@@ -224,25 +323,22 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
         }
         .fc-ingredient { animation: fc-ingredient-in 0.7s cubic-bezier(0.22,1,0.36,1) both; }
 
-        @keyframes fc-led-pulse {
-          0%, 100% { opacity: 0.55; box-shadow: 0 0 4px rgba(120,200,255,0.55); }
-          50%      { opacity: 1;    box-shadow: 0 0 10px rgba(140,210,255,1); }
-        }
-        .fc-led-pulse { animation: fc-led-pulse 2.8s ease-in-out infinite; }
+        /* Dispenser details stay lit but static — no continuous decorative
+           animation loops during the opening sequence (keeps it 60fps). */
+        .fc-led-pulse { opacity: 0.85; box-shadow: 0 0 6px rgba(130,205,255,0.8); }
+        .fc-led-glow { opacity: 0.7; }
+        .fc-water-shimmer { opacity: 0.45; transform: translate(-50%, 0); }
 
-        @keyframes fc-led-glow {
-          0%, 100% { opacity: 0.45; }
-          50%      { opacity: 0.9; }
-        }
-        .fc-led-glow { animation: fc-led-glow 3.4s ease-in-out infinite; }
 
-        @keyframes fc-water-shimmer {
-          0%   { opacity: 0; transform: translate(-50%, -4px) scaleY(0.6); }
-          40%  { opacity: 0.9; transform: translate(-50%, 0) scaleY(1); }
-          70%  { opacity: 0.5; transform: translate(-50%, 2px) scaleY(1.05); }
-          100% { opacity: 0; transform: translate(-50%, 6px) scaleY(0.7); }
+        @keyframes fc-interior-bloom-sweep {
+          0%   { transform: translate3d(-35%, 0, 0); opacity: 0; }
+          35%  { opacity: 1; }
+          100% { transform: translate3d(35%, 0, 0); opacity: 0; }
         }
-        .fc-water-shimmer { animation: fc-water-shimmer 5.5s ease-in-out infinite; }
+        .fc-interior-bloom { animation: fc-interior-bloom-sweep 2.6s ease-out 0.2s 1 both; }
+
+        @keyframes fc-welcome-line-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .fc-welcome-line { animation: fc-welcome-line-in 1.6s ease-out 1.4s both; }
 
         @keyframes fc-door-shine {
           0%   { opacity: 0; transform: translateX(-40%); }
@@ -250,6 +346,11 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
           100% { opacity: 0; transform: translateX(40%); }
         }
         .fc-door-shine { animation: fc-door-shine 2.4s ease-out 0.3s 1 both; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .fc-interior-bloom, .fc-door-shine { animation: none !important; opacity: 0 !important; }
+        }
+
       `}</style>
     </div>
   );
@@ -260,7 +361,7 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
 function FridgeShell() {
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 z-[85] top-[82px] bottom-[18px] sm:top-[126px] sm:bottom-[18px] w-[calc(85%+18px)] max-w-[378px] sm:max-w-[458px] rounded-[34px] pointer-events-none"
+      className="absolute left-1/2 -translate-x-1/2 z-[85] top-[clamp(226px,calc(34svh_-_6px),244px)] bottom-[18px] sm:top-[268px] sm:bottom-[18px] w-[calc(85%+18px)] max-w-[378px] sm:max-w-[458px] rounded-[34px] pointer-events-none"
       style={{
         background:
           "linear-gradient(180deg, #eef2f4 0%, #c7cdd2 18%, #f8fafb 34%, #b7bec4 56%, #e1e6e9 78%, #aeb5bb 100%)",
@@ -285,7 +386,7 @@ function FridgeShell() {
 function FridgeInterior({ revealing }: { revealing: boolean }) {
   return (
     <div
-      className="pointer-events-none absolute left-1/2 -translate-x-1/2 z-[90] top-[88px] bottom-[24px] sm:top-[132px] sm:bottom-[24px] w-[85%] max-w-[360px] sm:max-w-[440px] overflow-hidden rounded-[28px] ring-1 ring-stone-300/40 shadow-2xl"
+      className="pointer-events-none absolute left-1/2 -translate-x-1/2 z-[90] top-[clamp(232px,34svh,250px)] bottom-[24px] sm:top-[274px] sm:bottom-[24px] w-[85%] max-w-[360px] sm:max-w-[440px] overflow-hidden rounded-[28px] ring-1 ring-stone-300/40 shadow-2xl"
       style={{ opacity: revealing ? 1 : 0, transition: `opacity ${DOOR_DURATION_MS}ms ease-out` }}
     >
       {/* Real fridge interior photo — show the whole image */}
@@ -319,13 +420,24 @@ function FridgeInterior({ revealing }: { revealing: boolean }) {
       />
       {/* Vignette removed — keep fridge fully visible. */}
 
-
-      {/* Doors-open reveal: keep fridge interior clean — no scan grid, no green
-          brackets, no foggy overlays. The brighter food photo speaks for itself. */}
-      {revealing && null}
+      {revealing && (
+        /* Single, one-time light bloom as the doors part — GPU-friendly
+           (opacity/transform only), no floating or scattered graphics. */
+        <div
+          className="fc-interior-bloom pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(105deg, transparent 30%, rgba(255,250,235,0.34) 50%, transparent 70%)",
+            mixBlendMode: "screen",
+            willChange: "transform, opacity",
+          }}
+        />
+      )}
     </div>
   );
 }
+
+
 
 
 function Bracket({ corner }: { corner: "tl" | "tr" | "bl" | "br" }) {

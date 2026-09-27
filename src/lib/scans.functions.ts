@@ -483,3 +483,150 @@ export const getBestByReminders = createServerFn({ method: "POST" })
       latestScanAt: data?.[0]?.created_at ?? null,
     };
   });
+
+// ---------- Scan history: compare scans over time ----------
+// Every scan is already persisted in fridge_scans. This turns that log into a
+// timeline: what each scan held, and what changed since the scan before it.
+
+export type ScanSnapshot = {
+  id: string;
+  createdAt: string;
+  summary: string | null;
+  cuisine: string | null;
+  imageUrl: string | null;
+  itemCount: number;
+  freshCount: number;
+  useSoonCount: number;
+  atRiskCount: number;
+  items: string[];
+  added: string[];
+  gone: string[];
+  kept: string[];
+};
+
+export type ScanHistory = {
+  scans: ScanSnapshot[];
+  totals: {
+    scanCount: number;
+    avgItems: number;
+    firstScanAt: string | null;
+    latestScanAt: string | null;
+  };
+  staples: { name: string; appearances: number }[];
+  repeatOffenders: { name: string; times: number }[];
+};
+
+export const getScanHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<ScanHistory> => {
+    const { supabase, userId } = context;
+
+    const { data, error } = await supabase
+      .from("fridge_scans")
+      .select("id, image_path, summary, cuisine, items, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(12);
+
+    if (error) throw new Error(`Fetch failed: ${error.message}`);
+
+    const rows = data ?? [];
+    const appearances = new Map<string, number>();
+    const risky = new Map<string, number>();
+
+    const parsed = rows.map((scan) => {
+      const raw = Array.isArray(scan.items) ? (scan.items as any[]) : [];
+      const names: string[] = [];
+      let fresh = 0;
+      let useSoon = 0;
+      let atRisk = 0;
+      const seen = new Set<string>();
+
+      for (const it of raw) {
+        const name = (it?.name ?? "").toString().trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        names.push(name);
+        appearances.set(key, (appearances.get(key) ?? 0) + 1);
+
+        const freshness = (it?.freshness ?? "fresh").toString();
+        if (freshness === "use-soon") useSoon += 1;
+        else if (freshness === "questionable" || freshness === "throw-out" || it?.unsafe) {
+          atRisk += 1;
+          risky.set(key, (risky.get(key) ?? 0) + 1);
+        } else fresh += 1;
+      }
+
+      return { scan, names, fresh, useSoon, atRisk };
+    });
+
+    const scans: ScanSnapshot[] = [];
+    for (let i = 0; i < parsed.length; i++) {
+      const cur = parsed[i]!;
+      const prev = parsed[i + 1]; // next in list = older scan
+      const curKeys = new Set(cur.names.map((n) => n.toLowerCase()));
+      const prevKeys = new Set((prev?.names ?? []).map((n) => n.toLowerCase()));
+
+      const added = prev ? cur.names.filter((n) => !prevKeys.has(n.toLowerCase())) : [];
+      const kept = prev ? cur.names.filter((n) => prevKeys.has(n.toLowerCase())) : [];
+      const gone = prev ? prev.names.filter((n) => !curKeys.has(n.toLowerCase())) : [];
+
+      let imageUrl: string | null = null;
+      const { data: signed } = await supabase.storage
+        .from("fridge-photos")
+        .createSignedUrl(cur.scan.image_path, 60 * 60);
+      imageUrl = signed?.signedUrl ?? null;
+
+      scans.push({
+        id: cur.scan.id,
+        createdAt: cur.scan.created_at,
+        summary: cur.scan.summary ?? null,
+        cuisine: cur.scan.cuisine ?? null,
+        imageUrl,
+        itemCount: cur.names.length,
+        freshCount: cur.fresh,
+        useSoonCount: cur.useSoon,
+        atRiskCount: cur.atRisk,
+        items: cur.names.slice(0, 40),
+        added: added.slice(0, 12),
+        gone: gone.slice(0, 12),
+        kept: kept.slice(0, 12),
+      });
+    }
+
+    const nameOf = (key: string) => {
+      for (const p of parsed) {
+        const hit = p.names.find((n) => n.toLowerCase() === key);
+        if (hit) return hit;
+      }
+      return key;
+    };
+
+    const staples = [...appearances.entries()]
+      .filter(([, n]) => n > 1)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([key, n]) => ({ name: nameOf(key), appearances: n }));
+
+    const repeatOffenders = [...risky.entries()]
+      .filter(([, n]) => n > 1)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([key, n]) => ({ name: nameOf(key), times: n }));
+
+    const totalItems = parsed.reduce((sum, p) => sum + p.names.length, 0);
+
+    return {
+      scans,
+      totals: {
+        scanCount: scans.length,
+        avgItems: scans.length ? Math.round(totalItems / scans.length) : 0,
+        firstScanAt: scans[scans.length - 1]?.createdAt ?? null,
+        latestScanAt: scans[0]?.createdAt ?? null,
+      },
+      staples,
+      repeatOffenders,
+    };
+  });

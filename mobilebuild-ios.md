@@ -96,7 +96,7 @@ After `npx cap add ios`, paste these into `ios/App/App/Info.plist` inside the `<
 
 ## After every web update (no resubmission needed)
 
-Because the app loads `https://thefridgeandcupboard.com` at runtime, most web changes appear instantly in the installed app.
+The app launches from the package installed on the iPhone. Web changes require a new native build before they appear in the installed app; online AI, account, scanning and payment requests still reach the live service.
 
 You only need to rebuild and resubmit when:
 - App icon, splash screen, or name changes

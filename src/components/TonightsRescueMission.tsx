@@ -10,7 +10,6 @@ import { tonightsRescueMission, type RescueMission } from "@/lib/rescue-mission.
 import { logCookedMeal, getRecentInventory } from "@/lib/savings.functions";
 import { ShareMenu } from "@/components/ShareMenu";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
-import { dietLabel } from "@/lib/personalization";
 import { getFunnyMode } from "@/lib/funny-chef";
 import { celebrate } from "@/components/effects/Celebration";
 import { playChaChing } from "@/lib/sound-effects";
@@ -26,7 +25,7 @@ const VARIANTS: { id: Variant; label: string; icon: typeof Zap; tone: string }[]
 ];
 
 export function TonightsRescueMission() {
-  const { prefs } = useDietaryPrefs();
+  const { restrictions } = useDietaryPrefs();
   const missionFn = useServerFn(tonightsRescueMission);
   const inventoryFn = useServerFn(getRecentInventory);
   const cookedFn = useServerFn(logCookedMeal);
@@ -49,7 +48,7 @@ export function TonightsRescueMission() {
           leftovers,
           expiringSoon: expiring,
           cuisines: [],
-          restrictions: prefs.map((p) => dietLabel(p)),
+          restrictions,
           funnyChef: getFunnyMode(),
         },
       });

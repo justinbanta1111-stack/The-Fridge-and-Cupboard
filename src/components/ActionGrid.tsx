@@ -93,7 +93,7 @@ export function ActionGrid() {
             <Link
               key={t.to}
               to={target as any}
-              className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${t.grad} p-3.5 text-left text-white shadow-md ring-1 ${t.ring} transition hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0`}
+              className={`press-lift group relative overflow-hidden rounded-2xl bg-gradient-to-br ${t.grad} p-3.5 text-left text-white shadow-md ring-1 ${t.ring} hover:-translate-y-0.5 hover:shadow-lg`}
             >
               <div className="flex items-start gap-3">
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/20 backdrop-blur-sm ring-1 ring-white/30">

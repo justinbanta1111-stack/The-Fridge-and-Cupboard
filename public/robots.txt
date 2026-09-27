@@ -1,4 +1,20 @@
 User-agent: *
 Allow: /
 
+# Private / signed-in areas — never index
+Disallow: /account
+Disallow: /auth
+Disallow: /reset-password
+Disallow: /delete-account
+Disallow: /checkout
+Disallow: /admin
+Disallow: /onboarding
+Disallow: /sync-status
+Disallow: /mobile-qa
+Disallow: /test-checklist
+Disallow: /scan-history
+Disallow: /saved
+Allow: /api/public/og
+Disallow: /api/
+
 Sitemap: https://thefridgeandcupboard.com/sitemap.xml

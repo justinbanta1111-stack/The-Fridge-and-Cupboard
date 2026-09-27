@@ -9,9 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Keyboard, ChefHat, Loader2, Sparkles, Clock, ArrowLeft, Camera, AlertTriangle, Soup, PackageOpen, Snowflake } from "lucide-react";
 import { suggestRecipes } from "@/lib/fridge.functions";
+import { MatchedDishes } from "@/components/MatchedDishes";
+
 import { supabase } from "@/integrations/supabase/client";
+import { ensureGuestSession } from "@/lib/guest";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
 
 export const Route = createFileRoute("/type-ingredients")({
   head: () => ({
@@ -76,6 +80,7 @@ const QUICK_TAGS: { id: string; label: string; icon: typeof AlertTriangle; hint:
 ];
 
 function TypeIngredientsPage() {
+  const { restrictions } = useDietaryPrefs();
   const [raw, setRaw] = useState("");
   const [mode, setMode] = useState<Mode>("default");
   const [useFirst, setUseFirst] = useState<Set<string>>(new Set());
@@ -113,10 +118,15 @@ function TypeIngredientsPage() {
       if (items.length === 0) throw new Error("Please type at least one ingredient.");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        toast.error("Please sign in to get meal ideas.");
-        navigate({ to: "/auth" });
-        throw new Error("Sign in required");
+        // Free to try: guests get an anonymous session automatically.
+        try {
+          await ensureGuestSession();
+        } catch {
+          toast.error("Couldn't start a guest session. Please try again.");
+          throw new Error("Guest session failed");
+        }
       }
+
       const cfg = MODE_LABELS[mode];
       const priorityNote = cleanUseFirst.size > 0
         ? " Build the meal around the items marked USE FIRST so nothing goes to waste."
@@ -125,7 +135,7 @@ function TypeIngredientsPage() {
         data: {
           items,
           cuisine: cfg.cuisine + priorityNote,
-          restrictions: cfg.restrictions,
+          restrictions: Array.from(new Set([...(cfg.restrictions ?? []), ...restrictions])),
           mode: cfg.mode ?? "default",
         },
       });
@@ -334,7 +344,9 @@ function TypeIngredientsPage() {
             ))}
           </section>
         )}
+        {parsed.length > 0 && <MatchedDishes items={parsed} className="mt-10" />}
       </main>
+
     </>
   );
 }

@@ -44,73 +44,109 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
+
+  /* Premium brand palette — warm charcoal foundation, restrained accents */
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ivory: var(--ivory);
+  --color-jade: var(--jade);
+  --color-teal: var(--teal);
+  --color-gold: var(--gold);
+  --color-royal: var(--royal);
+  --color-royal-deep: var(--royal-deep);
 }
+
 
 :root {
   --radius: 0.5rem;
 
-  /* Pure black canvas, soft white ink */
-  --background: oklch(0 0 0);
-  --foreground: oklch(0.97 0 0);
+  /* Soft warm charcoal canvas, warm ivory ink */
+  --background: oklch(0.185 0.013 145);
+  --foreground: oklch(0.97 0.008 85);
 
-  --card: oklch(0.14 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.14 0 0);
-  --popover-foreground: oklch(0.97 0 0);
+  --card: oklch(0.245 0.014 165);
+  --card-foreground: oklch(0.97 0.008 85);
+  --popover: oklch(0.245 0.014 165);
+  --popover-foreground: oklch(0.97 0.008 85);
 
-  /* Electric blue CTA (matches site's "USE MY LEFTOVERS" button) */
-  --primary: oklch(0.56 0.17 252);
-  --primary-foreground: oklch(0.98 0 0);
+  /* Fresh sophisticated green as the primary action colour */
+  --primary: oklch(0.68 0.14 158);
+  --primary-foreground: oklch(0.18 0.02 158);
 
-  --secondary: oklch(0.2 0 0);
-  --secondary-foreground: oklch(0.97 0 0);
+  --secondary: oklch(0.3 0.01 80);
+  --secondary-foreground: oklch(0.97 0.008 85);
 
-  --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.7 0 0);
+  --muted: oklch(0.27 0.009 80);
+  --muted-foreground: oklch(0.87 0.012 85);
 
-  /* Same blue as accent — keep the palette tight */
-  --accent: oklch(0.56 0.17 252);
-  --accent-foreground: oklch(0.98 0 0);
+  /* Warm amber accent */
+  --accent: oklch(0.84 0.11 82);
+  --accent-foreground: oklch(0.22 0.03 60);
 
-  --destructive: oklch(0.62 0.22 28);
+  --destructive: oklch(0.64 0.2 28);
   --destructive-foreground: oklch(0.98 0 0);
 
-  --success: oklch(0.72 0.16 150);
-  --success-foreground: oklch(0.1 0 0);
+  --success: oklch(0.74 0.15 155);
+  --success-foreground: oklch(0.16 0.02 155);
 
-  --warning: oklch(0.82 0.17 75);
-  --warning-foreground: oklch(0.15 0 0);
+  --warning: oklch(0.85 0.15 78);
+  --warning-foreground: oklch(0.2 0.03 60);
 
-  --border: oklch(0.22 0 0);
-  --input: oklch(0.22 0 0);
-  --ring: oklch(0.56 0.17 252);
+  --border: oklch(0.36 0.018 175);
+  --input: oklch(0.36 0.018 175);
+  --ring: oklch(0.68 0.14 158);
+
+  /* Premium palette — richer teals, fresher greens, warmer gold */
+  --ink: oklch(0.225 0.012 140);
+  --ink-soft: oklch(0.315 0.018 175);
+  --ivory: oklch(0.978 0.014 88);
+  --jade: oklch(0.75 0.165 158);
+  --teal: oklch(0.72 0.135 205);
+  --gold: oklch(0.85 0.135 82);
+  /* Rich deep blue — primary call-to-action colour */
+  --royal: oklch(0.52 0.175 262);
+  --royal-deep: oklch(0.42 0.155 264);
 }
+
+
 
 .dark {
-  --background: oklch(0 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.14 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.14 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.56 0.17 252);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.2 0 0);
-  --secondary-foreground: oklch(0.97 0 0);
-  --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.7 0 0);
-  --accent: oklch(0.56 0.17 252);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.62 0.22 28);
+  --background: oklch(0.185 0.013 145);
+  --foreground: oklch(0.97 0.008 85);
+  --card: oklch(0.245 0.014 165);
+  --card-foreground: oklch(0.97 0.008 85);
+  --popover: oklch(0.245 0.014 165);
+  --popover-foreground: oklch(0.97 0.008 85);
+  --primary: oklch(0.68 0.14 158);
+  --primary-foreground: oklch(0.18 0.02 158);
+  --secondary: oklch(0.3 0.01 80);
+  --secondary-foreground: oklch(0.97 0.008 85);
+  --muted: oklch(0.27 0.009 80);
+  --muted-foreground: oklch(0.87 0.012 85);
+  --accent: oklch(0.84 0.11 82);
+  --accent-foreground: oklch(0.22 0.03 60);
+  --destructive: oklch(0.64 0.2 28);
   --destructive-foreground: oklch(0.98 0 0);
-  --success: oklch(0.72 0.16 150);
-  --success-foreground: oklch(0.1 0 0);
-  --warning: oklch(0.82 0.17 75);
-  --warning-foreground: oklch(0.15 0 0);
-  --border: oklch(0.22 0 0);
-  --input: oklch(0.22 0 0);
-  --ring: oklch(0.56 0.17 252);
+  --success: oklch(0.74 0.15 155);
+  --success-foreground: oklch(0.16 0.02 155);
+  --warning: oklch(0.85 0.15 78);
+  --warning-foreground: oklch(0.2 0.03 60);
+  --border: oklch(0.36 0.018 175);
+  --input: oklch(0.36 0.018 175);
+  --ring: oklch(0.68 0.14 158);
+
+  /* Premium palette */
+  --ink: oklch(0.225 0.012 140);
+  --ink-soft: oklch(0.315 0.018 175);
+  --ivory: oklch(0.978 0.014 88);
+  --jade: oklch(0.75 0.165 158);
+  --teal: oklch(0.72 0.135 205);
+  --gold: oklch(0.85 0.135 82);
+  --royal: oklch(0.52 0.175 262);
+  --royal-deep: oklch(0.42 0.155 264);
 }
+
+
 
 @layer base {
   * {
@@ -120,7 +156,18 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-body);
+    /* Lock layout on mobile: block pinch-zoom, double-tap zoom, and any
+     * horizontal drag/pan. iOS Safari ignores user-scalable=no in many
+     * cases, so we enforce it here at the CSS layer as well. */
+    touch-action: pan-y;
+    -ms-touch-action: pan-y;
+    overscroll-behavior-x: none;
+    overflow-x: hidden;
+    max-width: 100vw;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
+
   h1, h2, h3, h4 {
     font-family: var(--font-display);
     letter-spacing: -0.015em;
@@ -131,16 +178,31 @@
 @layer utilities {
   .bg-grain {
     background-image:
-      radial-gradient(at 20% 10%, oklch(0.56 0.17 252 / 0.12), transparent 55%),
-      radial-gradient(at 85% 0%, oklch(0.56 0.17 252 / 0.08), transparent 50%);
+      radial-gradient(at 18% 6%, oklch(0.52 0.175 262 / 0.20), transparent 58%),
+      radial-gradient(at 88% 0%, oklch(0.42 0.155 264 / 0.16), transparent 52%),
+      radial-gradient(at 60% 100%, oklch(0.85 0.135 82 / 0.07), transparent 58%),
+      linear-gradient(170deg, oklch(0.215 0.014 250), oklch(0.175 0.010 250) 60%);
+    background-attachment: fixed;
   }
+  .glow-royal { box-shadow: 0 26px 60px -26px oklch(0.52 0.175 262 / 0.75), 0 0 0 1px oklch(0.52 0.175 262 / 0.18), 0 1px 0 oklch(1 0 0 / 0.14) inset; }
+
+  .surface-satin {
+    background-image:
+      linear-gradient(160deg, oklch(1 0 0 / 0.13), oklch(1 0 0 / 0.045) 45%, oklch(0 0 0 / 0.07));
+  }
+  .glow-jade { box-shadow: 0 26px 60px -26px oklch(0.75 0.165 158 / 0.7), 0 0 0 1px oklch(0.75 0.165 158 / 0.12), 0 1px 0 oklch(1 0 0 / 0.14) inset; }
+  .glow-gold { box-shadow: 0 26px 60px -26px oklch(0.85 0.135 82 / 0.65), 0 0 0 1px oklch(0.85 0.135 82 / 0.12), 0 1px 0 oklch(1 0 0 / 0.14) inset; }
+  .glow-teal { box-shadow: 0 26px 60px -26px oklch(0.72 0.135 205 / 0.65), 0 0 0 1px oklch(0.72 0.135 205 / 0.12), 0 1px 0 oklch(1 0 0 / 0.14) inset; }
+  .glow-soft { box-shadow: 0 20px 48px -26px oklch(0 0 0 / 0.65), 0 1px 0 oklch(1 0 0 / 0.1) inset; }
   .bg-welcome {
     background-image:
-      radial-gradient(at 12% 8%, oklch(0.72 0.18 35 / 0.22), transparent 55%),
-      radial-gradient(at 88% 12%, oklch(0.72 0.16 150 / 0.20), transparent 55%),
-      radial-gradient(at 70% 90%, oklch(0.56 0.17 252 / 0.22), transparent 60%),
-      radial-gradient(at 20% 95%, oklch(0.82 0.17 75 / 0.18), transparent 55%);
+      radial-gradient(at 10% 2%, oklch(0.85 0.135 82 / 0.10), transparent 52%),
+      radial-gradient(at 92% 14%, oklch(0.52 0.175 262 / 0.22), transparent 58%),
+      radial-gradient(at 58% 92%, oklch(0.42 0.155 264 / 0.20), transparent 62%),
+      linear-gradient(168deg, oklch(0.225 0.018 256), oklch(0.178 0.012 250) 62%);
+    background-attachment: fixed;
   }
+
   .ring-paper {
     box-shadow:
       0 1px 0 oklch(1 0 0 / 0.04) inset,
@@ -255,6 +317,75 @@
   .tfc-chef-pop     { animation: tfc-chef-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
   .tfc-confetti     { animation: tfc-confetti 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
   .tfc-ingredient-popup { animation: tfc-ingredient-popup 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+  /* === Subtle premium motion layer (presentation only) === */
+  @keyframes tfc-reveal-up {
+    0%   { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.995); }
+    100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  }
+  @keyframes tfc-sheen-sweep {
+    0%   { transform: translateX(-120%) skewX(-14deg); opacity: 0; }
+    8%   { opacity: 0.5; }
+    38%  { opacity: 0; }
+    100% { transform: translateX(220%) skewX(-14deg); opacity: 0; }
+  }
+  @keyframes tfc-icon-rise {
+    0%   { opacity: 0; transform: translateY(6px) scale(0.94); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes tfc-bg-drift {
+    0%, 100% { background-position: 0% 50%, 100% 0%, 50% 100%; }
+    50%      { background-position: 12% 42%, 88% 10%, 42% 92%; }
+  }
+
+  /* Scroll reveal: hidden until RevealObserver adds .is-revealed */
+  [data-reveal] {
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+  [data-reveal].is-revealed {
+    animation: tfc-reveal-up 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+
+  /* Gentle press / lift feedback on tap */
+  .press-lift {
+    transition:
+      transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .press-lift:active {
+    transform: translateY(2px) scale(0.96);
+    filter: brightness(0.96);
+  }
+  @media (hover: hover) {
+    .press-lift:hover { transform: translateY(-2px); }
+  }
+
+  /* Occasional soft light sweep across gradient cards */
+  .sheen {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .sheen::after {
+    content: "";
+    position: absolute;
+    inset: -30% -60%;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 35%,
+      oklch(1 0 0 / 0.16) 50%,
+      transparent 65%
+    );
+    animation: tfc-sheen-sweep 9s ease-in-out 1.5s infinite;
+  }
+  .sheen-slow::after { animation-duration: 13s; animation-delay: 3.5s; }
+
+  .icon-rise { animation: tfc-icon-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both; }
+  .bg-drift  { background-size: 180% 180%; animation: tfc-bg-drift 34s ease-in-out infinite; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -277,18 +408,28 @@
     animation: none !important;
     transition: none !important;
   }
+  [data-reveal],
+  [data-reveal].is-revealed { opacity: 1 !important; animation: none !important; }
+  .sheen::after { animation: none !important; opacity: 0 !important; }
+  .icon-rise, .bg-drift, .press-lift { animation: none !important; transition: none !important; }
 }
 
-/* Mobile readability boost: ~12.5% larger base text on small screens */
+/* Mobile readability: larger, higher-contrast type so the app is easy to
+ * glance at instead of feeling like reading a book. */
 @media (max-width: 639px) {
   html {
-    font-size: 18px;
+    font-size: 19px;
   }
 
   /* Hardcoded pixel sizes don't scale with root font-size — bump them manually */
-  .text-\[9px\]  { font-size: 10px !important; }
-  .text-\[10px\] { font-size: 11px !important; }
-  .text-\[11px\] { font-size: 12px !important; }
-  .text-\[13px\] { font-size: 14px !important; }
+  .text-\[9px\]  { font-size: 12px !important; }
+  .text-\[10px\] { font-size: 13px !important; }
+  .text-\[11px\] { font-size: 14px !important; }
+  .text-\[13px\] { font-size: 15px !important; }
   .text-\[15px\] { font-size: 17px !important; }
+
+  /* Avoid thin, low-contrast lettering on small screens */
+  .font-light, .font-thin, .font-extralight { font-weight: 500 !important; }
 }
+
+

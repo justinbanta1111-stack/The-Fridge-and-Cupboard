@@ -16,6 +16,16 @@ public class MainActivity extends BridgeActivity {
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebSettings settings = getBridge().getWebView().getSettings();
             settings.setMediaPlaybackRequiresUserGesture(false);
+            // Ensure the web content fits the Android screen automatically at
+            // the correct size — matches the iPhone layout so users never
+            // have to pinch to zoom out on Android.
+            settings.setUseWideViewPort(true);
+            settings.setLoadWithOverviewMode(true);
+            settings.setBuiltInZoomControls(false);
+            settings.setDisplayZoomControls(false);
+            settings.setSupportZoom(false);
+            settings.setTextZoom(100);
         }
+
     }
 }

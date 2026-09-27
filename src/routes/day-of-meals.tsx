@@ -44,6 +44,7 @@ import { getRecentInventory } from "@/lib/savings.functions";
 import { getUrgentItems } from "@/lib/scans.functions";
 import { ShareMenu } from "@/components/ShareMenu";
 import { supabase } from "@/integrations/supabase/client";
+import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
 
 export const Route = createFileRoute("/day-of-meals")({
   head: () => ({
@@ -88,6 +89,7 @@ const SLOT_META: Record<Meal["slot"], { label: string; Icon: any }> = {
 };
 
 function DayOfMealsPage() {
+  const { restrictions } = useDietaryPrefs();
   const [memory, setMemory] = useState<DayMemory>(() => loadDayMemory());
   const [goal, setGoal] = useState<DayGoal>(memory.lastGoal ?? "save-money");
   const [time, setTime] = useState<DayTime>((memory.lastTime as DayTime) ?? "under-30");
@@ -149,7 +151,8 @@ function DayOfMealsPage() {
           haveIngredients: mergedHave(),
           expiringSoon: expiring,
           leftovers,
-          history: { loved: memory.loved, avoid: memory.avoid },
+          restrictions,
+          history: { loved: memory.loved, avoid: Array.from(new Set([...memory.avoid, ...restrictions])) },
         },
       });
       setPlan(res);
@@ -172,9 +175,10 @@ function DayOfMealsPage() {
           haveIngredients: mergedHave(),
           expiringSoon: expiring,
           leftovers,
+          restrictions,
           swapSlot: slot,
           swapAway: away,
-          history: { loved: memory.loved, avoid: memory.avoid },
+          history: { loved: memory.loved, avoid: Array.from(new Set([...memory.avoid, ...restrictions])) },
         },
       });
       const newMeal = res.meals.find((m) => m.slot === slot) ?? res.meals[0];

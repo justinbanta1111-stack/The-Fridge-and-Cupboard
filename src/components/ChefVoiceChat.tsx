@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
@@ -18,13 +26,6 @@ import {
   Package,
   Soup,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   speakNow,
@@ -34,20 +35,16 @@ import {
   isVoiceAudioUnlocked,
   unlockVoiceAudio,
   getVoiceChatEnabled,
-  getVoiceGender,
-  setVoiceGender,
   getVoicePersonality,
-  setVoicePersonality,
   VOICE_CHAT_PREF_EVENT,
   whenVoicesReady,
-  type VoiceGender,
-  type VoicePersonality,
 } from "@/lib/voice-assistant";
 import { VoiceRecognizer, isRecognitionSupported } from "@/lib/voice-recognition";
+import { ensureMicPermission as ensureMic, MIC_BLOCKED_MESSAGE } from "@/lib/mic-permission";
 import { chatWithChef, type ChefChatReply } from "@/lib/voice-chat.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
-import { dietLabel } from "@/lib/personalization";
+import { useLanguage } from "@/lib/i18n/context";
 
 type Turn = { role: "user" | "assistant"; text: string };
 
@@ -146,10 +143,6 @@ function ChefVoiceModal({
   const [readyPrompt, setReadyPrompt] = useState(false);
   const [handsFree, setHandsFree] = useState<HandsFreeState>(null);
   const [muted, setMuted] = useState(!getVoiceEnabled());
-  const [voiceGender, setVoiceGenderState] = useState<VoiceGender>(() => getVoiceGender());
-  const [personality, setPersonalityState] = useState<VoicePersonality>(() =>
-    getVoicePersonality(),
-  );
   const [micPermission, setMicPermission] = useState<"unknown" | "granted" | "denied" | "prompt">(
     "unknown",
   );
@@ -158,26 +151,33 @@ function ChefVoiceModal({
   const turnsRef = useRef<Turn[]>([]);
   const speakingRef = useRef(false);
   const pendingRef = useRef(false);
-  const tapToTalkInFlightRef = useRef(false);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressProgressRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const longPressTriggeredRef = useRef(false);
+  const listeningStartRef = useRef<Promise<boolean> | null>(null);
+  const rearmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cycleRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [longPressPct, setLongPressPct] = useState(0);
-  const { prefs } = useDietaryPrefs();
+  const { restrictions } = useDietaryPrefs();
   const chatFn = useServerFn(chatWithChef);
+  const { language: chatLanguage } = useLanguage();
 
-  async function unlockAudioFromTap(): Promise<boolean> {
-    setSoundFallback(null);
-    if (isVoiceAudioUnlocked()) return true;
-    const ok = await unlockVoiceAudio();
-    if (!ok) {
-      const msg = "Tap for Voice again to allow Chef Super J audio.";
-      console.error("[voice] audio playback blocked: mobile audio unlock failed");
-      setSoundFallback(msg);
-      setError("Audio playback blocked. Tap for Voice again to allow Chef Super J voice.");
-    }
-    return ok;
+  function clearRearm() {
+    if (rearmTimerRef.current) clearTimeout(rearmTimerRef.current);
+    rearmTimerRef.current = null;
+  }
+
+  function scheduleListening(delay = 1000) {
+    clearRearm();
+    const cycle = cycleRef.current;
+    rearmTimerRef.current = setTimeout(() => {
+      rearmTimerRef.current = null;
+      if (
+        cycle === cycleRef.current &&
+        voiceLoopRef.current &&
+        !speakingRef.current &&
+        !pendingRef.current
+      ) {
+        void startListening();
+      }
+    }, delay);
   }
 
   useEffect(() => {
@@ -192,9 +192,10 @@ function ChefVoiceModal({
       chatFn({
         data: {
           message: input.message,
-          history: input.history.slice(-10).map((t) => ({ role: t.role, text: t.text })),
-          restrictions: prefs.map((p) => dietLabel(p)),
-          voicePersonality: personality,
+          history: input.history.slice(-24).map((t) => ({ role: t.role, text: t.text })),
+          restrictions,
+          voicePersonality: getVoicePersonality(),
+          language: chatLanguage,
         },
       }),
     onSuccess: (reply: ChefChatReply) => {
@@ -245,7 +246,7 @@ function ChefVoiceModal({
       voiceLoopRef.current = true;
       // Greeting already played; continue into hands-free listening.
       setTurns([{ role: "assistant", text: "What can I do for you today?" }]);
-      setTimeout(() => startListening(), 80);
+      scheduleListening(80);
       return;
     }
     const greet = signedIn
@@ -260,9 +261,33 @@ function ChefVoiceModal({
   }, [authReady]);
 
   useEffect(() => {
+    // Hands-free entry (Companion Mode / quick buttons): request audio and mic
+    // immediately. A later browser gesture may unlock audio, but it never acts
+    // as a talk control and the microphone flow does not wait for it.
+    if (!autoListen && !prefill) return;
+    let cancelled = false;
+    const onGesture = () => {
+      void unlockVoiceAudio();
+    };
+    void (async () => {
+      await Promise.allSettled([unlockVoiceAudio(), startListening()]);
+      if (!cancelled && !isVoiceAudioUnlocked()) {
+        document.addEventListener("pointerdown", onGesture, { once: true, capture: true });
+      }
+    })();
+    return () => {
+      cancelled = true;
+      document.removeEventListener("pointerdown", onGesture, { capture: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     // Stop on unmount.
     return () => {
       voiceLoopRef.current = false;
+      cycleRef.current += 1;
+      clearRearm();
       recognizerRef.current?.stop();
       stopAllAudio();
     };
@@ -272,19 +297,30 @@ function ChefVoiceModal({
     scrollRef.current?.scrollTo({ top: 9e9, behavior: "smooth" });
   }, [turns, partial]);
 
+  // Safety re-arm: if the loop is active but nothing is happening (mic ended
+  // on its own after Chef finished), quietly start listening again so the
+  // conversation stays hands-free.
+  useEffect(() => {
+    if (!supported) return;
+    if (!voiceLoopRef.current) return;
+    if (listening || speaking || chatMut.isPending) return;
+    const t = setTimeout(() => {
+      if (voiceLoopRef.current && !listening && !speaking && !chatMut.isPending) {
+        scheduleListening(0);
+      }
+    }, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listening, speaking, chatMut.isPending, supported]);
+
   function speakReply(text: string) {
-    if (!isVoiceAudioUnlocked()) {
-      console.error("[voice] audio playback blocked: user tap required before speaking");
-      setSoundFallback("Tap for Voice again to allow Chef Super J audio.");
-      setReadyPrompt(true);
-      return;
-    }
+    clearRearm();
+    cycleRef.current += 1;
     setReadyPrompt(false);
     setSoundFallback(null);
     if (muted) {
       setReadyPrompt(true);
-      setSoundFallback("Tap for Voice again to allow Chef Super J audio.");
-      if (voiceLoopRef.current) setTimeout(() => startListening(), 200);
+      if (voiceLoopRef.current) scheduleListening();
       return;
     }
     recognizerRef.current?.stop();
@@ -300,7 +336,7 @@ function ChefVoiceModal({
         speakingRef.current = false;
         setSpeaking(false);
         setReadyPrompt(true);
-        if (voiceLoopRef.current) setTimeout(() => startListening(), 200);
+        if (voiceLoopRef.current) scheduleListening();
       },
       onError: (reason) => {
         speakingRef.current = false;
@@ -308,9 +344,9 @@ function ChefVoiceModal({
         const msg = reason || "Chef Super J voice failed to play.";
         console.error("[voice] text-to-speech failed:", msg);
         setError(msg);
-        setSoundFallback("Tap for Voice again to allow Chef Super J audio.");
+        setSoundFallback("Chef Super J audio could not play. Listening will continue.");
         setReadyPrompt(true);
-        if (voiceLoopRef.current) setTimeout(() => startListening(), 200);
+        if (voiceLoopRef.current) scheduleListening();
       },
     });
     if (!ok) {
@@ -318,9 +354,9 @@ function ChefVoiceModal({
       setSpeaking(false);
       console.error("[voice] text-to-speech failed: speakNow returned false");
       setError("Chef Super J voice failed to play.");
-      setSoundFallback("Tap for Voice again to allow Chef Super J audio.");
+      setSoundFallback("Chef Super J audio could not play. Listening will continue.");
       setReadyPrompt(true);
-      if (voiceLoopRef.current) setTimeout(() => startListening(), 200);
+      if (voiceLoopRef.current) scheduleListening();
     }
   }
 
@@ -334,6 +370,11 @@ function ChefVoiceModal({
   }
 
   function handleVoiceCommand(rawText: string) {
+    // Every command owns the turn. Close the microphone before processing so
+    // room noise or Chef's upcoming reply cannot become a second user request.
+    clearRearm();
+    recognizerRef.current?.stop();
+    setListening(false);
     // Strip wake phrase: "Chef Super J, ..." / "Hey Chef Super J ..."
     const text =
       rawText
@@ -344,7 +385,7 @@ function ChefVoiceModal({
 
     if (/\b(stop listening|end conversation|stop voice chat|turn off mic)\b/.test(lower)) {
       stopListening();
-      const msg = "No problem — I stopped listening. Tap to speak when you need me.";
+      const msg = "No problem — I stopped listening.";
       setTurns((t) => [...t, { role: "user", text: rawText }, { role: "assistant", text: msg }]);
       speakReply(msg);
       return;
@@ -390,44 +431,42 @@ function ChefVoiceModal({
     chatMut.mutate({ message: text, history: currentTurns });
   }
 
-  async function ensureMicPermission(): Promise<boolean> {
+  /**
+   * Ask for the microphone at most once. Already granted → straight through,
+   * already denied → one small Settings message, never another popup (unless
+   * the person taps "Try voice again", which passes force = true).
+   */
+  async function ensureMicPermission(force = false): Promise<boolean> {
     if (micPermission === "granted") return true;
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    const state = await ensureMic(force);
+    if (state === "granted") {
+      setMicPermission("granted");
+      setError(null);
+      return true;
+    }
+    if (state === "unsupported") {
       setError("This browser can't access the microphone. Try Chrome on Android.");
       setMicPermission("denied");
       return false;
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Immediately release — SpeechRecognition will open its own stream.
-      stream.getTracks().forEach((t) => t.stop());
-      setMicPermission("granted");
-      return true;
-    } catch (e: unknown) {
-      const name = e instanceof DOMException ? e.name : "";
-      if (name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError") {
-        console.error("[voice] microphone permission denied:", name);
-        setError(
-          "Please allow camera or microphone access in your browser settings, or upload a photo instead.",
-        );
-        setMicPermission("denied");
-      } else if (name === "NotFoundError") {
-        console.error("[voice] microphone permission denied: no microphone found");
-        setError("No microphone found on this device.");
-        setMicPermission("denied");
-      } else {
-        console.error("[voice] microphone permission denied or unavailable:", name || e);
-        setError(
-          "Please allow camera or microphone access in your browser settings, or upload a photo instead.",
-        );
-        setMicPermission("denied");
-      }
-      return false;
-    }
-
+    setError(MIC_BLOCKED_MESSAGE);
+    setMicPermission("denied");
+    return false;
   }
 
+
   async function startListening(): Promise<boolean> {
+    if (listeningStartRef.current) return listeningStartRef.current;
+    const task = startListeningOnce();
+    listeningStartRef.current = task;
+    try {
+      return await task;
+    } finally {
+      if (listeningStartRef.current === task) listeningStartRef.current = null;
+    }
+  }
+
+  async function startListeningOnce(): Promise<boolean> {
     if (!supported) {
       console.error("[voice] transcription failed: voice recognition unsupported");
       setError("Voice input isn't supported in this browser. Try Chrome on Android or desktop.");
@@ -435,11 +474,10 @@ function ChefVoiceModal({
     }
     if (recognizerRef.current?.isActive()) return true;
     if (pendingRef.current) return false;
-    if (speakingRef.current) {
-      stopAllAudio();
-      speakingRef.current = false;
-      setSpeaking(false);
-    }
+    // Never barge into Chef's own audio. Listening is re-armed by the playback
+    // completion callback after a short acoustic cooldown.
+    if (speakingRef.current) return false;
+    clearRearm();
     voiceLoopRef.current = true;
     setReadyPrompt(false);
     const ok = await ensureMicPermission();
@@ -488,7 +526,7 @@ function ChefVoiceModal({
         setListening(false);
         // Unexpected end (no speech captured) — restart so the user isn't stranded.
         if (voiceLoopRef.current && !heardFinal && !speakingRef.current && !pendingRef.current) {
-          setTimeout(() => startListening(), 200);
+          scheduleListening(700);
         }
       },
     });
@@ -499,13 +537,15 @@ function ChefVoiceModal({
       } catch {}
     } else {
       console.error("[voice] transcription failed: microphone did not start");
-      setError("Microphone did not start. Tap Try Voice Again.");
+      setError("Microphone did not start. Check microphone access and try again.");
     }
     return started;
   }
 
   function stopListening() {
     voiceLoopRef.current = false;
+    cycleRef.current += 1;
+    clearRearm();
     recognizerRef.current?.stop();
     stopAllAudio();
     speakingRef.current = false;
@@ -516,119 +556,6 @@ function ChefVoiceModal({
     try {
       window.dispatchEvent(new CustomEvent("tfc:chef-voice-idle"));
     } catch {}
-  }
-
-  const LONG_PRESS_MS = 600;
-
-  function startLongPress() {
-    if (longPressTimerRef.current) return;
-    longPressTriggeredRef.current = false;
-    setLongPressPct(0);
-    const start = Date.now();
-    longPressProgressRef.current = setInterval(() => {
-      const elapsed = Date.now() - start;
-      const pct = Math.min(100, (elapsed / LONG_PRESS_MS) * 100);
-      setLongPressPct(pct);
-      if (pct >= 100 && longPressProgressRef.current) {
-        clearInterval(longPressProgressRef.current);
-        longPressProgressRef.current = null;
-      }
-    }, 30);
-    longPressTimerRef.current = setTimeout(() => {
-      longPressTriggeredRef.current = true;
-      cancelLongPress(false);
-      // Cancel voice cycle and return to idle
-      voiceLoopRef.current = false;
-      stopListening();
-      setHandsFree(null);
-      setReadyPrompt(true);
-      setError(null);
-      setPartial("");
-      setLastTranscript("");
-      if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
-        (navigator as any).vibrate(40);
-      }
-    }, LONG_PRESS_MS);
-  }
-
-  function cancelLongPress(resetPct = true) {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    if (longPressProgressRef.current) {
-      clearInterval(longPressProgressRef.current);
-      longPressProgressRef.current = null;
-    }
-    if (resetPct) {
-      setLongPressPct(0);
-      longPressTriggeredRef.current = false;
-    }
-  }
-
-  async function handleTapToTalk() {
-    // Strict lockout: ignore taps while a cycle is in flight or Chef is
-    // mid-response. Only an idle or actively-listening button accepts taps.
-    if (tapToTalkInFlightRef.current) return;
-    if (speakingRef.current || pendingRef.current) return;
-    if (listening) {
-      tapToTalkInFlightRef.current = true;
-      stopListening();
-      setReadyPrompt(true);
-      setTimeout(() => {
-        tapToTalkInFlightRef.current = false;
-      }, 600);
-      return;
-    }
-    tapToTalkInFlightRef.current = true;
-    try {
-      const unlocked = await unlockAudioFromTap();
-      if (!unlocked) return;
-      await startListening();
-    } finally {
-      // Hold the lock long enough to swallow ghost touches (iOS double-fires
-      // pointerup/click and rapid finger jitter) before allowing a stop tap.
-      setTimeout(() => {
-        tapToTalkInFlightRef.current = false;
-      }, 600);
-    }
-  }
-
-  const lastTriggerRef = useRef(0);
-  function triggerTap() {
-    const now = Date.now();
-    // Single-tap lockout window. Swallows the synthetic click that follows
-    // pointerup, plus any iOS ghost taps within ~600ms.
-    if (now - lastTriggerRef.current < 600) return;
-    lastTriggerRef.current = now;
-    void handleTapToTalk();
-  }
-
-  function handleTapToTalkPointerDown(e: PointerEvent<HTMLButtonElement>) {
-    e.preventDefault();
-    startLongPress();
-  }
-  function handleTapToTalkPointerUp(e: PointerEvent<HTMLButtonElement>) {
-    e.preventDefault();
-    e.stopPropagation();
-    const wasTriggered = longPressTriggeredRef.current;
-    cancelLongPress(true);
-    if (wasTriggered) {
-      lastTriggerRef.current = Date.now();
-      return;
-    }
-    triggerTap();
-  }
-  function handleTapToTalkPointerLeave(e: PointerEvent<HTMLButtonElement>) {
-    e.preventDefault();
-    cancelLongPress(true);
-  }
-  function handleTapToTalkClick(e: MouseEvent<HTMLButtonElement>) {
-    // Pointer events handle the tap; the click is just a fallback for
-    // keyboards / non-pointer environments.
-    e.preventDefault();
-    e.stopPropagation();
-    triggerTap();
   }
 
   function advanceStep(delta: number) {
@@ -666,18 +593,6 @@ function ChefVoiceModal({
     });
   }
 
-  function chooseGender(next: VoiceGender) {
-    setVoiceGenderState(next);
-    setVoiceGender(next);
-    speakReply("Voice updated. I'm ready when you are.");
-  }
-
-  function choosePersonality(next: VoicePersonality) {
-    setPersonalityState(next);
-    setVoicePersonality(next);
-    speakReply("Style updated. Let's keep it moving.");
-  }
-
   const latestAssistant = [...turns].reverse().find((t) => t.role === "assistant")?.text;
 
   return (
@@ -705,34 +620,6 @@ function ChefVoiceModal({
               Voice Assistant
             </p>
             <p className="text-sm font-bold text-foreground">Chef Super J</p>
-          </div>
-          <div className="hidden min-w-[8.5rem] gap-1 sm:grid">
-            <Select
-              value={voiceGender}
-              onValueChange={(value) => chooseGender(value as VoiceGender)}
-            >
-              <SelectTrigger className="h-8 bg-white/50 text-xs" aria-label="Choose voice">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="male">Male</SelectItem>
-                <SelectItem value="female">Female</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={personality}
-              onValueChange={(value) => choosePersonality(value as VoicePersonality)}
-            >
-              <SelectTrigger className="h-8 bg-white/50 text-xs" aria-label="Choose personality">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="chef">Chef-style</SelectItem>
-                <SelectItem value="friendly">Friendly</SelectItem>
-                <SelectItem value="energetic">Energetic</SelectItem>
-                <SelectItem value="calm">Calm</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           <button
             type="button"
@@ -820,75 +707,45 @@ function ChefVoiceModal({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 border-b border-border bg-card px-4 py-2 sm:hidden">
-          <Select value={voiceGender} onValueChange={(value) => chooseGender(value as VoiceGender)}>
-            <SelectTrigger className="h-9 text-xs" aria-label="Choose voice">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="male">Male</SelectItem>
-              <SelectItem value="female">Female</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={personality}
-            onValueChange={(value) => choosePersonality(value as VoicePersonality)}
-          >
-            <SelectTrigger className="h-9 text-xs" aria-label="Choose personality">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="chef">Chef-style</SelectItem>
-              <SelectItem value="friendly">Friendly</SelectItem>
-              <SelectItem value="energetic">Energetic</SelectItem>
-              <SelectItem value="calm">Calm</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
         <div className="border-b border-border bg-gradient-to-b from-[oklch(0.98_0.05_35)] via-card to-card px-4 py-4 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[oklch(0.45_0.15_30)]">
             First step
           </p>
           <div className="mx-auto mt-2 max-w-sm rounded-3xl bg-white/85 px-4 py-3 text-base font-extrabold leading-snug text-foreground shadow-lg shadow-black/10 ring-1 ring-border/60">
-            {latestAssistant ?? "Tap the microphone, or scan your fridge when you're ready."}
+            {latestAssistant ?? "Chef Super J is listening whenever you're ready."}
           </div>
 
           <div className="mt-4 flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={handleTapToTalkClick}
-              onPointerDown={handleTapToTalkPointerDown}
-              onPointerUp={handleTapToTalkPointerUp}
-              onPointerLeave={handleTapToTalkPointerLeave}
-              onContextMenu={(e) => e.preventDefault()}
-              aria-disabled={chatMut.isPending}
-              aria-label={listening ? "Stop listening" : "Microphone"}
-              style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent", pointerEvents: "auto" }}
-              className={cn(
-                "relative grid h-10 w-10 cursor-pointer select-none place-items-center rounded-full text-white ring-2 ring-white/70 transition active:scale-95",
+            <div
+              role="status"
+              aria-label={
                 listening
-                  ? "bg-[oklch(0.55_0.22_25)]"
-                  : "bg-[oklch(0.5_0.2_255)]",
+                  ? "Chef Super J is listening"
+                  : speaking
+                    ? "Chef Super J is speaking"
+                    : "Chef Super J voice status"
+              }
+              className={cn(
+                "relative grid h-10 w-10 select-none place-items-center rounded-full text-white ring-2 ring-white/70 transition",
+                listening ? "bg-[oklch(0.55_0.22_25)]" : "bg-[oklch(0.5_0.2_255)]",
                 (chatMut.isPending || speaking) && "opacity-60",
               )}
             >
               {listening && (
                 <span className="pointer-events-none absolute inset-0 rounded-full bg-[oklch(0.55_0.22_25/0.35)] animate-ping" />
               )}
-              {longPressPct > 0 && (
-                <span
-                  className="pointer-events-none absolute inset-0 rounded-full bg-[oklch(0.55_0.25_25/0.55)] transition-none"
-                  style={{ transform: `scale(${0.25 + (longPressPct / 100) * 0.75})` }}
-                />
-              )}
               <Mic className="pointer-events-none relative h-4 w-4" />
-            </button>
+            </div>
             <span className="text-xs font-semibold text-muted-foreground">
-              {listening ? "Listening…" : speaking ? "Speaking…" : chatMut.isPending ? "Thinking…" : "Just talk"}
+              {listening
+                ? "Listening…"
+                : speaking
+                  ? "Speaking…"
+                  : chatMut.isPending
+                    ? "Thinking…"
+                    : "Just talk"}
             </span>
           </div>
-
 
           {soundFallback && (
             <p className="mt-2 text-xs font-semibold text-muted-foreground" aria-live="polite">
@@ -907,7 +764,7 @@ function ChefVoiceModal({
                   ? "Thinking…"
                   : readyPrompt
                     ? "Ready when you are."
-                    : "Tap to talk"}
+                    : "Go ahead — I'm listening."}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {listening
@@ -915,11 +772,22 @@ function ChefVoiceModal({
               : "Tell me what you have, or skip straight to scanning."}
           </p>
 
-
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <VoiceActionButton icon={<Refrigerator className="h-4 w-4" />} label="Scan my fridge" onClick={() => goScan("/scan")} />
-            <VoiceActionButton icon={<Package className="h-4 w-4" />} label="Scan my cupboard" onClick={() => goScan("/cupboard")} />
-            <VoiceActionButton icon={<Soup className="h-4 w-4" />} label="Use my leftovers" onClick={() => goScan("/rescue")} />
+            <VoiceActionButton
+              icon={<Refrigerator className="h-4 w-4" />}
+              label="Scan my fridge"
+              onClick={() => goScan("/scan")}
+            />
+            <VoiceActionButton
+              icon={<Package className="h-4 w-4" />}
+              label="Scan my cupboard"
+              onClick={() => goScan("/cupboard")}
+            />
+            <VoiceActionButton
+              icon={<Soup className="h-4 w-4" />}
+              label="Use my leftovers"
+              onClick={() => goScan("/rescue")}
+            />
             <button
               type="button"
               onClick={() => {
@@ -938,17 +806,17 @@ function ChefVoiceModal({
                 setError(null);
                 setSoundFallback(null);
                 setMicPermission("unknown");
-                  // Re-request mic permission from a fresh user gesture.
-                const ok = await ensureMicPermission();
+                // Re-request mic permission from a fresh user gesture.
+                const ok = await ensureMicPermission(true);
                 if (!ok) return;
                 voiceLoopRef.current = true;
-                  // Restart the greeting-to-listening flow: replay the last
-                  // assistant greeting so speakReply's onEnd hands off to
-                  // startListening automatically.
-                await unlockAudioFromTap();
-                const lastGreeting = [...turnsRef.current]
-                  .reverse()
-                    .find((t) => t.role === "assistant")?.text ?? "What can I do for you today?";
+                // Restart the greeting-to-listening flow: replay the last
+                // assistant greeting so speakReply's onEnd hands off to
+                // startListening automatically.
+                await unlockVoiceAudio();
+                const lastGreeting =
+                  [...turnsRef.current].reverse().find((t) => t.role === "assistant")?.text ??
+                  "What can I do for you today?";
                 if (lastGreeting && isVoiceAudioUnlocked() && !muted) {
                   speakReply(lastGreeting);
                 } else {
@@ -957,7 +825,6 @@ function ChefVoiceModal({
               }}
             />
           )}
-
 
           {(error || !supported) && micPermission !== "denied" && (
             <div className="mt-3 rounded-2xl bg-destructive/10 p-3 text-center ring-1 ring-destructive/20">
@@ -1081,7 +948,11 @@ function VoiceActionButton({
       type="button"
       onClick={onClick}
       onPointerDown={onPointerDown}
-      style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent", pointerEvents: "auto" }}
+      style={{
+        touchAction: "manipulation",
+        WebkitTapHighlightColor: "transparent",
+        pointerEvents: "auto",
+      }}
       className={cn(
         "relative z-30 flex min-h-[60px] min-w-[60px] cursor-pointer select-none items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-black shadow-lg transition active:scale-[0.98]",
         primary
@@ -1091,7 +962,12 @@ function VoiceActionButton({
           : "bg-white text-foreground ring-1 ring-border/70 shadow-black/10",
       )}
     >
-      <span className={cn("pointer-events-none grid h-8 w-8 shrink-0 place-items-center rounded-full", primary ? "bg-white/15" : "bg-amber-300 text-stone-950")}>
+      <span
+        className={cn(
+          "pointer-events-none grid h-8 w-8 shrink-0 place-items-center rounded-full",
+          primary ? "bg-white/15" : "bg-amber-300 text-stone-950",
+        )}
+      >
         {icon}
       </span>
       <span className="pointer-events-none leading-tight">{label}</span>
@@ -1111,7 +987,8 @@ const SUGGESTIONS = [
 function isIOSSafari(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
-  const iOS = /iPad|iPhone|iPod/.test(ua) ||
+  const iOS =
+    /iPad|iPhone|iPod/.test(ua) ||
     (navigator.platform === "MacIntel" && (navigator as any).maxTouchPoints > 1);
   const safari = /^((?!chrome|crios|fxios|edgios).)*safari/i.test(ua);
   return iOS && safari;
@@ -1122,23 +999,31 @@ function MicPermissionPrompt({ onRetry }: { onRetry: () => void | Promise<void> 
   const ios = isIOSSafari();
   return (
     <div className="mt-3 rounded-2xl bg-amber-50 p-4 text-left ring-1 ring-amber-300/60">
-      <p className="text-sm font-black text-amber-950">
-        Microphone is blocked
-      </p>
+      <p className="text-sm font-black text-amber-950">Microphone is blocked</p>
       <p className="mt-1 text-xs text-amber-900/80">
         Chef Super J needs microphone access to hear you. Allow it, then tap Try Voice Again.
       </p>
       {ios ? (
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-amber-900/90">
-          <li>Tap the <strong>“aA”</strong> icon in Safari's address bar.</li>
-          <li>Choose <strong>Website Settings</strong>.</li>
-          <li>Set <strong>Microphone</strong> to <strong>Allow</strong>, then return here.</li>
-          <li>If you don't see it: iPhone <strong>Settings → Safari → Microphone → Allow</strong>.</li>
+          <li>
+            Tap the <strong>“aA”</strong> icon in Safari's address bar.
+          </li>
+          <li>
+            Choose <strong>Website Settings</strong>.
+          </li>
+          <li>
+            Set <strong>Microphone</strong> to <strong>Allow</strong>, then return here.
+          </li>
+          <li>
+            If you don't see it: iPhone <strong>Settings → Safari → Microphone → Allow</strong>.
+          </li>
         </ol>
       ) : (
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-amber-900/90">
           <li>Tap the lock or site icon in your address bar.</li>
-          <li>Set <strong>Microphone</strong> to <strong>Allow</strong>.</li>
+          <li>
+            Set <strong>Microphone</strong> to <strong>Allow</strong>.
+          </li>
           <li>Reload the page if prompted, then return here.</li>
         </ol>
       )}
@@ -1147,7 +1032,11 @@ function MicPermissionPrompt({ onRetry }: { onRetry: () => void | Promise<void> 
         onClick={async () => {
           if (busy) return;
           setBusy(true);
-          try { await onRetry(); } finally { setBusy(false); }
+          try {
+            await onRetry();
+          } finally {
+            setBusy(false);
+          }
         }}
         className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-black text-white shadow-md transition active:scale-[0.98] disabled:opacity-60"
         disabled={busy}
@@ -1158,4 +1047,3 @@ function MicPermissionPrompt({ onRetry }: { onRetry: () => void | Promise<void> 
     </div>
   );
 }
-

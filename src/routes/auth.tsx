@@ -9,10 +9,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 import { closeInstallModal, safeLocalRedirect } from "@/lib/checkout-intent";
+import { isNativeApp } from "@/lib/native-runtime";
+import { isBundledOrigin, REMOTE_API_ORIGIN } from "@/lib/native-api-origin";
+import {
+  deliverSessionToNativeApp,
+  isNativeAuthHandoff,
+  startNativeOAuth,
+} from "@/lib/native-auth";
+import { notifyNewSignup } from "@/lib/signup-alert.functions";
+
+/** Links in emails and OAuth returns must point at the live site, never the app bundle. */
+function webOrigin() {
+  if (typeof window === "undefined") return REMOTE_API_ORIGIN;
+  return isBundledOrigin() ? REMOTE_API_ORIGIN : window.location.origin;
+}
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
+      { name: "robots", content: "noindex, nofollow" },
       { title: "Sign in — The Fridge and Cupboard" },
       {
         name: "description",
@@ -29,8 +44,18 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+// Hand the voice assistant a clean slate across the sign-in reload: it greets
+// once on the signed-in page, comes back unmuted, and resumes listening.
+function primeVoiceForSignedInPage() {
+  try {
+    sessionStorage.setItem("tfc.voice.resume-after-auth.v1", "1");
+    sessionStorage.removeItem("tfc.voice.greeted.v1");
+    sessionStorage.removeItem("tfc.voice.enabled.v1");
+  } catch {}
+}
+
 function AuthPage() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,43 +65,83 @@ function AuthPage() {
     return safeLocalRedirect(new URLSearchParams(window.location.search).get("redirect"), "/");
   }
 
-  // If already signed in, send them home
+  // If already signed in, send them home (or hand the session to the app).
   useEffect(() => {
     closeInstallModal();
+    // Owner alert for brand-new accounts. Never blocks sign-in: it is capped
+    // at a couple of seconds and any failure is ignored.
+    const alertOwnerOnce = async (user: { is_anonymous?: boolean | null }) => {
+      if (user.is_anonymous) return;
+      try {
+        await Promise.race([
+          notifyNewSignup(),
+          new Promise((resolve) => setTimeout(resolve, 2500)),
+        ]);
+      } catch {
+        /* sign-in continues regardless */
+      }
+    };
+    const finish = async (user: { is_anonymous?: boolean | null }) => {
+      primeVoiceForSignedInPage();
+      await alertOwnerOnce(user);
+      if (await deliverSessionToNativeApp()) return;
+      window.location.replace(redirectTarget());
+    };
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) window.location.replace(redirectTarget());
+      if (data.session?.user) void finish(data.session.user);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) window.location.replace(redirectTarget());
+      if (event === "SIGNED_IN" && session?.user) void finish(session.user);
     });
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  async function handleGoogle() {
+  async function signInWith(provider: "google" | "apple") {
     closeInstallModal();
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/auth?redirect=${encodeURIComponent(redirectTarget())}`,
+      if (isNativeApp()) {
+        // The app opens the live site to finish sign-in, then gets the session back.
+        await startNativeOAuth(provider);
+        return;
+      }
+      const nativeFlag = isNativeAuthHandoff() ? "native=1&" : "";
+      const result = await lovable.auth.signInWithOAuth(provider, {
+        redirect_uri: `${webOrigin()}/auth?${nativeFlag}redirect=${encodeURIComponent(redirectTarget())}`,
       });
-      if (result.error) toast.error("Google sign-in failed. Please try again.");
+      if (result.error) {
+        toast.error(
+          provider === "google"
+            ? "Google sign-in failed. Please try again."
+            : "Apple sign-in failed. Please try again.",
+        );
+      }
     } catch {
-      toast.error("Google sign-in failed.");
+      toast.error("Sign-in failed. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleApple() {
-    closeInstallModal();
+  const handleGoogle = () => void signInWith("google");
+  const handleApple = () => void signInWith("apple");
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) {
+      toast.error("Enter your email first.");
+      return;
+    }
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("apple", {
-        redirect_uri: `${window.location.origin}/auth?redirect=${encodeURIComponent(redirectTarget())}`,
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${webOrigin()}/reset-password`,
       });
-      if (result.error) toast.error("Apple sign-in failed. Please try again.");
-    } catch {
-      toast.error("Apple sign-in failed.");
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Password reset email sent. Check your inbox.");
+      }
     } finally {
       setBusy(false);
     }
@@ -95,7 +160,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/auth?redirect=${encodeURIComponent(redirectTarget())}` },
+          options: { emailRedirectTo: `${webOrigin()}/auth?redirect=${encodeURIComponent(redirectTarget())}` },
         });
         if (error) {
           toast.error(error.message);
@@ -115,7 +180,59 @@ function AuthPage() {
     }
   }
 
+  // In the installed app the email form is the sign-in screen itself; the
+  // Google / Apple buttons move below it as the secondary choice.
+  const inApp = isNativeApp();
+
+  const oauthDivider = (
+    <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+      <span className="h-px flex-1 bg-border" />
+      {inApp ? "or continue with" : "or use email"}
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+
+  const oauthButtons = (
+    <div className="space-y-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        onClick={handleGoogle}
+        disabled={busy}
+        className="w-full gap-2"
+      >
+        <GoogleIcon className="h-4 w-4" />
+        Continue with Google
+      </Button>
+      <Button
+        type="button"
+        size="lg"
+        onClick={handleApple}
+        disabled={busy}
+        className="w-full gap-2 bg-black text-white hover:bg-black/90"
+      >
+        <AppleIcon className="h-4 w-4" />
+        Continue with Apple
+      </Button>
+    </div>
+  );
+
+  const oauthSection = inApp ? (
+    <>
+      {oauthDivider}
+      {oauthButtons}
+    </>
+  ) : (
+    <>
+      {oauthButtons}
+      {oauthDivider}
+    </>
+  );
+
+
   return (
+
     <div className="relative min-h-dvh bg-gradient-to-b from-[#FFF8E7] via-background to-background px-4 py-10">
       <div className="mx-auto flex w-full max-w-md flex-col items-center">
         <Link to="/" className="mb-6 flex items-center gap-2.5">
@@ -135,46 +252,30 @@ function AuthPage() {
               </div>
             )}
             <h1 className="font-display text-2xl tracking-tight sm:text-3xl">
-              {mode === "signin" ? "Welcome back" : "Start your free 3-day trial"}
+              {mode === "signin"
+              ? "Welcome back"
+              : mode === "forgot"
+                ? "Reset your password"
+                : "Start your free 3-day trial"}
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
               {mode === "signin"
                 ? "Save your scans, track savings, and use what you already have."
+                : mode === "forgot"
+                ? "Enter your email and we'll send you a link to set a new password."
                 : "Explore every scan, recipe, and savings feature free for 3 days. We only ask about a subscription after your trial ends."}
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={handleGoogle}
-              disabled={busy}
-              className="w-full gap-2"
-            >
-              <GoogleIcon className="h-4 w-4" />
-              Continue with Google
-            </Button>
-            <Button
-              type="button"
-              size="lg"
-              onClick={handleApple}
-              disabled={busy}
-              className="w-full gap-2 bg-black text-white hover:bg-black/90"
-            >
-              <AppleIcon className="h-4 w-4" />
-              Continue with Apple
-            </Button>
-          </div>
+          {/* Inside the installed app, the email form is the sign-in screen —
+              it stays right here, no browser window. Google and Apple stay
+              available underneath for anyone who prefers them. */}
+          {!inApp && oauthSection}
 
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            or use email
-            <span className="h-px flex-1 bg-border" />
-          </div>
 
-          <form onSubmit={handleEmailSubmit} className="space-y-3">
+
+
+          <form onSubmit={mode === "forgot" ? handleForgotPassword : handleEmailSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -188,28 +289,53 @@ function AuthPage() {
                 required
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={busy}
-                minLength={6}
-                required
-              />
-            </div>
+            {mode !== "forgot" && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  {mode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => setMode("forgot")}
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
+                  )}
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={busy}
+                  minLength={6}
+                  required
+                />
+              </div>
+            )}
             <Button type="submit" size="lg" disabled={busy} className="w-full gap-2">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-              {mode === "signin" ? "Sign in" : "Create account"}
+              {mode === "signin" ? "Sign in" : mode === "forgot" ? "Send reset link" : "Create account"}
             </Button>
           </form>
 
+          {inApp && oauthSection}
+
+
+
           <p className="mt-5 text-center text-sm text-muted-foreground">
-            {mode === "signin" ? (
+            {mode === "forgot" ? (
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="font-medium text-primary hover:underline"
+              >
+                Back to sign in
+              </button>
+            ) : mode === "signin" ? (
               <>
                 New here?{" "}
                 <button

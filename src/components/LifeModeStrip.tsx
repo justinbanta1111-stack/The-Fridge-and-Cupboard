@@ -4,8 +4,8 @@ import { Heart, ArrowRight } from "lucide-react";
 
 export function LifeModeStrip() {
   return (
-    <Card className="ring-paper mt-4 border-border/60 bg-gradient-to-br from-rose-500/10 via-card to-card p-4">
-      <Link to="/life-mode" className="flex items-center gap-3">
+    <Card data-reveal className="ring-paper mt-4 border-border/60 bg-gradient-to-br from-rose-500/10 via-card to-card p-4">
+      <Link to="/life-mode" className="press-lift -m-4 flex items-center gap-3 rounded-[inherit] p-4">
         <div className="rounded-xl bg-rose-500/15 p-2.5 text-rose-500">
           <Heart className="h-5 w-5" />
         </div>

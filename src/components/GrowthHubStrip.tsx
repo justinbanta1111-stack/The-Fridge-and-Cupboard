@@ -6,7 +6,8 @@ export function GrowthHubStrip() {
     <section className="mt-4">
       <Link
         to="/grocery-plus"
-        className="group flex items-center gap-3 rounded-2xl border border-border bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md"
+        data-reveal
+        className="press-lift sheen group flex items-center gap-3 rounded-2xl border border-border bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 p-3 shadow-sm hover:border-primary/40 hover:shadow-md"
       >
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md">
           <ShoppingBasket className="h-5 w-5" />

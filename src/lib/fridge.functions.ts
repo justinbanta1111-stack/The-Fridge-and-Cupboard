@@ -1,11 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
+import { CELEBRATION_RULES, seasonalOccasionHint } from "@/lib/celebrations-prompt";
+import { DRINK_PAIRING_RULES } from "@/lib/drink-pairing-prompt";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { citricAcidPromptRule } from "./citric-acid";
+import { gerdPromptRule } from "./gerd";
+import { HUMOR_RULES } from "@/lib/chef-humor-prompt";
 
 const AnalyzeInput = z.object({
   imageDataUrl: z.string().min(10),
+  /** Extra views: additional photos and/or still frames sampled from a video. */
+  extraImageDataUrls: z.array(z.string().min(10)).max(7).optional(),
   restrictions: z.array(z.string()).optional(),
   mode: z.enum(["default", "lenten", "fasting", "holiday"]).optional(),
   storage: z.enum(["fridge", "freezer", "pantry", "counter", "delivery-just-arrived"]).optional(),
@@ -156,6 +163,8 @@ function buildAnalyzeSystem(opts: {
   return [
     "You are Chef Super J's fridge & cupboard inspector — a STRICT vision model. Your #1 rule: only report what you can ACTUALLY SEE in the photo. Accuracy over quantity. It is better to miss one item than invent one.",
     ctx.length ? `Context: ${ctx.join(" ")}` : "",
+    citricAcidPromptRule(opts.restrictions),
+    gerdPromptRule(opts.restrictions),
     scopeLine,
     "",
     "ANTI-HALLUCINATION RULES (read carefully):",
@@ -228,8 +237,15 @@ export const analyzeFridge = createServerFn({ method: "POST" })
           {
             role: "user",
             content: [
-              { type: "text", text: "Inspect this photo. Identify every visible food item and return the structured result." },
+              {
+                type: "text",
+                text:
+                  (data.extraImageDataUrls?.length ?? 0) > 0
+                    ? "These images are multiple views of the SAME storage space (extra photos, or frames taken from a short video the user recorded while panning across it). Combine them into ONE inventory: identify every visible food item, ingredient, leftover, container, and readable label. Do not list the same item twice just because it appears in more than one view."
+                    : "Inspect this photo. Identify every visible food item and return the structured result.",
+              },
               { type: "image", image: data.imageDataUrl },
+              ...(data.extraImageDataUrls ?? []).map((img) => ({ type: "image" as const, image: img })),
             ],
           },
         ],
@@ -291,6 +307,19 @@ const RecipesInput = z.object({
   mode: z.enum(["default", "lenten", "fasting", "holiday"]).optional(),
 });
 
+const SubstitutionSchema = z.object({
+  missing: z.string(),
+  swapWith: z.string(),
+  note: z.string(),
+});
+
+const NutritionSchema = z.object({
+  calories: z.number(),
+  proteinG: z.number(),
+  carbsG: z.number(),
+  fatG: z.number(),
+});
+
 const RecipeSchema = z.object({
   title: z.string(),
   description: z.string(),
@@ -298,6 +327,12 @@ const RecipeSchema = z.object({
   alsoNeed: z.array(z.string()),
   steps: z.array(z.string()),
   timeMinutes: z.number(),
+  prepMinutes: z.number().nullable().optional(),
+  cookMinutes: z.number().nullable().optional(),
+  servings: z.number().nullable().optional(),
+  nutrition: NutritionSchema.nullable().optional(),
+  substitutions: z.array(SubstitutionSchema).optional(),
+  storageTip: z.string().nullable().optional(),
   difficulty: z.enum(["easy", "medium", "hard"]),
   matchConfidence: z.number(),
   chefTip: z.string(),
@@ -337,18 +372,31 @@ export const suggestRecipes = createServerFn({ method: "POST" })
           role: "system",
           content: [
             "You are Chef Super J — a leftover-loving home cook who rescues fridges and saves money.",
+            ...HUMOR_RULES,
             "Suggest 4-6 realistic recipes. Cover a SPREAD of completion tiers so the user always has options:",
             "  • At least 1-2 'make-now' recipes — alsoNeed is EMPTY (assume basic pantry: oil, salt, pepper, garlic, onion, flour, eggs unless restricted). estimatedAddedCost = 0.",
             "  • At least 2 'almost-there' recipes — alsoNeed has 1-3 CHEAP common ingredients (each under ~$3, e.g. cilantro, a lemon, an onion, sour cream, tortillas, oregano, broccoli, teriyaki sauce). estimatedAddedCost = realistic USD total (usually $1-$8).",
             "  • Optionally 1 'quick-store-run' recipe — alsoNeed has 2-4 items still totaling under ~$12, all available at any corner store.",
             "Never suggest a recipe that needs 5+ extra ingredients or expensive proteins the user doesn't have.",
             "shortAdditionNote: one short friendly line like 'Just add cilantro' or 'Just add a lemon & sour cream'. Empty string for make-now recipes.",
-            "Prioritize using items going bad first (earlier in the inventory list) and leftovers.",
+            "PRIORITIZE items EARLIEST in the inventory list — they are going bad first. Every recipe should ideally use at least one of the top 3 items in the list. Recipes that rescue expiring items are the most valuable.",
             "Keep steps short and practical (5-7 steps).",
             "STRICTLY honor dietary restrictions — never suggest a recipe that violates them.",
+            citricAcidPromptRule(data.restrictions),
+            gerdPromptRule(data.restrictions),
             "matchConfidence (0.0-1.0): how well this recipe matches the inventory. make-now = 0.85+. almost-there = 0.65-0.85. quick-store-run = 0.5-0.7.",
             "chefTip: one short, professional technique tip from Chef Super J.",
+            "For EACH recipe also include:",
+            "  • prepMinutes: hands-on prep time in minutes.",
+            "  • cookMinutes: cooking / oven time in minutes. prep + cook should roughly equal timeMinutes.",
+            "  • servings: how many people it feeds (usually 2-4).",
+            "  • nutrition: per-serving { calories, proteinG, carbsG, fatG } as your best realistic estimate.",
+            "  • substitutions: 0-3 items covering the alsoNeed list or common allergens — each { missing, swapWith, note }. Empty array if none needed.",
+            "  • storageTip: one short line for leftovers, aligned with USDA guidance (e.g. 'Refrigerate up to 3 days; reheat to 165°F', 'Freeze up to 2 months in an airtight container'). Empty string if the dish must be eaten fresh.",
             modeGuidance(data.mode),
+            ...CELEBRATION_RULES,
+            ...DRINK_PAIRING_RULES,
+            seasonalOccasionHint(),
           ]
             .filter(Boolean)
             .join("\n"),
@@ -360,7 +408,22 @@ export const suggestRecipes = createServerFn({ method: "POST" })
       ],
     });
 
-    return output;
+    // Expiry-aware ranking: reward recipes that use items near the top of the
+    // inventory list (client sorts inventory by expiry urgency before calling).
+    // Score = (rescued * 3) + (owned * 1) - (missing * 2).
+    const topExpiring = new Set(data.items.slice(0, 6).map((i) => i.toLowerCase()));
+    const scored = output.recipes.map((r) => {
+      const rescuedCount = (r.usesFromFridge ?? []).filter((x) =>
+        topExpiring.has(String(x).toLowerCase()),
+      ).length;
+      const ownedCount = (r.usesFromFridge ?? []).length;
+      const missingCount = (r.alsoNeed ?? []).length;
+      const score = rescuedCount * 3 + ownedCount - missingCount * 2;
+      return { ...r, rescuedCount, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+
+    return { recipes: scored };
   });
 
 // ---------- Leftover Transformer ----------
@@ -403,9 +466,12 @@ export const transformLeftovers = createServerFn({ method: "POST" })
           role: "system",
           content: [
             "You are Chef Super J, a leftover-transformation specialist.",
+            ...HUMOR_RULES,
             "Take the user's leftovers and TRANSFORM them so nobody recognizes them as leftovers — tacos, frittatas, fried rice, savory pies, hand pies, stuffed peppers, soups, grain bowls, ramen, sliders, sheet-pan hash, shepherd's pie, croquettes, quesadillas, stratas.",
             "Each recipe needs: a strong 'hook' (why it's exciting), a one-line 'transformation' explaining what the leftover becomes, 5-7 short steps, and one Chef Super J pro technique tip.",
             "STRICTLY honor dietary restrictions.",
+            citricAcidPromptRule(data.restrictions),
+            gerdPromptRule(data.restrictions),
             "Keep extra ingredients minimal — assume basic pantry staples.",
             modeGuidance(data.mode),
           ]
@@ -488,13 +554,16 @@ export const rescueCook = createServerFn({ method: "POST" })
           role: "system",
           content: [
             "You are Chef Super J in EMERGENCY rescue mode — warm, funny, encouraging, real-world practical.",
+            ...HUMOR_RULES,
             "Output 2-4 recipes the user can actually cook RIGHT NOW with what they have.",
             "headline: short punchy line (e.g. 'You're not broke — you're resourceful.').",
             "encouragement: one warm sentence in Chef Super J's voice.",
             "Each recipe: tight hook, 4-7 short imperative steps (<= 18 words each), realistic timeMinutes, estimatedCost in USD (0 if nothing to buy), feeds like '2 adults' or '4 kids', one chef tip.",
             "STRICTLY honor dietary restrictions.",
+            citricAcidPromptRule(data.restrictions),
+            gerdPromptRule(data.restrictions),
             scenarioGuidance(data.scenario, data.customRequest),
-          ].join("\n"),
+          ].filter(Boolean).join("\n"),
         },
         {
           role: "user",

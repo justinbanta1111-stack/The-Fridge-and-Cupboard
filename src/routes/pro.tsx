@@ -5,6 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SiteNav } from "@/components/SiteNav";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { PlanComparisonTable } from "@/components/PlanComparisonTable";
+import { useSubscription } from "@/hooks/use-subscription";
+import { useEverythingUnlocked } from "@/hooks/use-store-purchases";
+
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -132,6 +136,8 @@ function ProPage() {
   }, []);
 
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const { isActive: hasSubscription } = useSubscription();
+  const allUnlocked = useEverythingUnlocked();
 
   const stripeReady = Boolean(import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN);
 
@@ -158,6 +164,32 @@ function ProPage() {
     if (stored) startCheckout(stored);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  if (hasSubscription) {
+    return (
+      <div className="min-h-screen bg-background bg-grain">
+        <SiteNav />
+        <main className="mx-auto max-w-2xl px-6 py-16">
+          <Card className="border-border/60 bg-card p-8 text-center">
+            <h1 className="font-display text-3xl tracking-tight">You're all set.</h1>
+            <p className="mt-3 text-muted-foreground">
+              {allUnlocked
+                ? "Every feature is unlocked in the app — scanning, Chef Super J, recipes, lists and all the rest."
+                : "Your subscription is active — everything is unlocked."}
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Button asChild>
+                <Link to="/">Start cooking</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/account">Manage account</Link>
+              </Button>
+            </div>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background bg-grain">
@@ -343,6 +375,9 @@ function ProPage() {
             <p className="mt-2 text-center text-[11px] text-muted-foreground">Cancel anytime · no pressure, upgrade later if you love it</p>
           </Card>
         </section>
+
+        <PlanComparisonTable />
+
 
         {/* Cooking School */}
         <section className="mt-16">

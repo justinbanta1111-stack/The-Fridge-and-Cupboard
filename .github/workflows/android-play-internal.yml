@@ -77,6 +77,9 @@ jobs:
           NODE_ENV: production
         run: npm run build
 
+      - name: Package offline app bundle for the device
+        run: node scripts/build-native-shell.mjs
+
       - name: Sync Capacitor Android
         run: |
           if [ ! -d "android" ]; then

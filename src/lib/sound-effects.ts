@@ -24,14 +24,13 @@ function getCtx(): AudioContext | null {
 }
 
 export function getSfxEnabled(): boolean {
-  if (typeof window === "undefined") return true;
-  const v = localStorage.getItem(SFX_PREF_KEY);
-  return v === null ? true : v === "1";
+  return false;
 }
 
 export function setSfxEnabled(enabled: boolean) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(SFX_PREF_KEY, enabled ? "1" : "0");
+  void enabled;
+  localStorage.setItem(SFX_PREF_KEY, "0");
 }
 
 /** Soft fridge-door "thunk + suction" — short, warm. */
@@ -174,16 +173,14 @@ export function playChaChing() {
 const AMBIENCE_PREF_KEY = "tfc.ambience.enabled.v1";
 
 export function getAmbienceEnabled(): boolean {
-  if (typeof window === "undefined") return false;
-  const v = localStorage.getItem(AMBIENCE_PREF_KEY);
-  // Default OFF — the low pad + brown noise was perceived as a fan/static hum.
-  return v === "1";
+  return false;
 }
 
 export function setAmbienceEnabled(enabled: boolean) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(AMBIENCE_PREF_KEY, enabled ? "1" : "0");
-  if (!enabled) stopKitchenAmbience();
+  void enabled;
+  localStorage.setItem(AMBIENCE_PREF_KEY, "0");
+  stopKitchenAmbience();
 }
 
 type AmbienceNodes = {
@@ -195,8 +192,9 @@ type AmbienceNodes = {
 let ambience: AmbienceNodes | null = null;
 
 export function startKitchenAmbience(volume = 0.06): void {
-  if (ambience) return;
-  if (!getAmbienceEnabled()) return;
+  void volume;
+  stopKitchenAmbience();
+  if (ambience || !getAmbienceEnabled()) return;
   const ac = getCtx();
   if (!ac) return;
   const t0 = ac.currentTime;

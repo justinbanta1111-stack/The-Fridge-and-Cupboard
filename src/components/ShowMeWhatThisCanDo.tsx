@@ -8,7 +8,7 @@ type Step = { title: string; line: string };
 
 const INTRO: Step = {
   title: "Chef Super J",
-  line: "Welcome to The Fridge and Cupboard. I'm Chef Super J. Let me show you what makes this different.",
+  line: "I'm Chef Super J. Let me show you what makes this different.",
 };
 
 const STEPS: Step[] = [

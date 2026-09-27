@@ -23,6 +23,7 @@ import {
 export const Route = createFileRoute("/saved")({
   head: () => ({
     meta: [
+      { name: "robots", content: "noindex, nofollow" },
       { title: "Saved — The Fridge & Cupboard" },
       { name: "description", content: "Your personal vault of saved recipes, leftovers, and meal ideas." },
       { property: "og:title", content: "Saved — The Fridge & Cupboard" },

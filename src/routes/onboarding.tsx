@@ -33,6 +33,7 @@ export const ONBOARDING_KEY = "tfc.onboarding.completed.v1";
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
     meta: [
+      { name: "robots", content: "noindex, nofollow" },
       { title: "Welcome — The Fridge & Cupboard" },
       { name: "description", content: "Quick tour of The Fridge & Cupboard. Use what you already have. Save money. Waste less. Eat better." },
     ],

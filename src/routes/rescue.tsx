@@ -27,13 +27,14 @@ import { SaveButton } from "@/components/SaveButton";
 
 import { DietaryPicker } from "@/components/DietaryPicker";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
-import { dietLabel } from "@/lib/personalization";
 import { analyzeFridge, suggestRecipes, transformLeftovers } from "@/lib/fridge.functions";
 import { playSizzle } from "@/lib/sound-effects";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { ScanAuthGate } from "@/components/ScanAuthGate";
+import { ensureGuestSession } from "@/lib/guest";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { setScanContext } from "@/lib/scan-context";
 
 export const Route = createFileRoute("/rescue")({
   head: () => ({
@@ -112,16 +113,29 @@ function RescuePage() {
   const [packaging, setPackaging] = useState<PackagingOpt>("mixed");
   const [source, setSource] = useState<SourceOpt>("grocery-store");
   const [purchasedDaysAgo, setPurchasedDaysAgo] = useState<number>(0);
+  const [ctxDone, setCtxDone] = useState(false);
+
   const [user, setUser] = useState<any>(null);
   const [showAuthGate, setShowAuthGate] = useState(false);
   const [cooking, setCooking] = useState<null | { title: string; subtitle?: string; steps: string[] }>(null);
-  const { prefs, toggle, clear } = useDietaryPrefs();
+  const { prefs, toggle, clear, restrictions } = useDietaryPrefs();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session?.user) return setUser(data.session.user);
+      // Free to try: guests get an anonymous session automatically.
+      try {
+        setUser(await ensureGuestSession());
+      } catch {
+        setUser(null);
+      }
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (s?.user) setUser(s.user);
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
+
 
   const analyzeFn = useServerFn(analyzeFridge);
   const recipesFn = useServerFn(suggestRecipes);
@@ -138,7 +152,7 @@ function RescuePage() {
       analyzeFn({
         data: {
           imageDataUrl: dataUrl,
-          restrictions: prefs.map((p) => dietLabel(p)),
+          restrictions,
           mode,
           storage,
           packaging,
@@ -146,7 +160,22 @@ function RescuePage() {
           purchasedDaysAgo,
         },
       }),
-    onSuccess: () => setStep("triage"),
+    onSuccess: (result) => {
+      // Let the voice chef see the same leftovers the user just scanned,
+      // so the conversation can continue from them.
+      try {
+        const usableItems = result.items.filter((i) => i.freshness !== "throw-out" && !i.unsafe);
+        setScanContext({
+          items: usableItems.map((i) => i.name),
+          useFirst: usableItems
+            .filter((i) => i.freshness === "use-soon" || i.freshness === "questionable")
+            .map((i) => i.name),
+          summary: result.summary,
+          storage,
+        });
+      } catch {}
+      setStep("triage");
+    },
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
@@ -198,8 +227,6 @@ function RescuePage() {
     ? analysis.priorityOrder
     : safeSorted.filter((i) => i.freshness !== "throw-out").map((i) => i.name));
   const leftoversOnly = safeSorted.filter((i) => i.category === "leftover" && i.freshness !== "throw-out");
-  const restrictions = prefs.map((p) => dietLabel(p));
-
   return (
     <div className="min-h-screen bg-background bg-grain">
       <SiteNav />
@@ -225,36 +252,50 @@ function RescuePage() {
         {/* Step 1: scan */}
         {!imageDataUrl && (
           <div className="mt-8 space-y-6">
-            <ScanContextForm
-              storage={storage}
-              setStorage={setStorage}
-              packaging={packaging}
-              setPackaging={setPackaging}
-              source={source}
-              setSource={setSource}
-              purchasedDaysAgo={purchasedDaysAgo}
-              setPurchasedDaysAgo={setPurchasedDaysAgo}
-            />
-            <PhotoPicker
-              onPick={(_file, dataUrl) => {
-                if (!user) {
-                  setShowAuthGate(true);
-                  return;
-                }
-                setImageDataUrl(dataUrl);
-                analyzeMut.reset();
-                rescueMut.reset();
-                transformMut.reset();
-                analyzeMut.mutate(dataUrl);
-              }}
-              label="Start scanning"
-            />
-            {showAuthGate && (
-              <ScanAuthGate message="Sign in to scan your leftovers, get AI triage, and unlock rescue recipes and transforms." />
+            {!ctxDone ? (
+              <ScanContextForm
+                storage={storage}
+                setStorage={setStorage}
+                packaging={packaging}
+                setPackaging={setPackaging}
+                source={source}
+                setSource={setSource}
+                purchasedDaysAgo={purchasedDaysAgo}
+                setPurchasedDaysAgo={setPurchasedDaysAgo}
+                onComplete={() => setCtxDone(true)}
+              />
+            ) : (
+              <>
+                <ScanContextSummary
+                  storage={storage}
+                  packaging={packaging}
+                  source={source}
+                  purchasedDaysAgo={purchasedDaysAgo}
+                  onEdit={() => setCtxDone(false)}
+                />
+                <PhotoPicker
+                  onPick={(_file, dataUrl) => {
+                    if (!user) {
+                      setShowAuthGate(true);
+                      return;
+                    }
+                    setImageDataUrl(dataUrl);
+                    analyzeMut.reset();
+                    rescueMut.reset();
+                    transformMut.reset();
+                    analyzeMut.mutate(dataUrl);
+                  }}
+                  label="Start Scanning"
+                />
+                {showAuthGate && (
+                  <ScanAuthGate message="Sign in to scan your leftovers, get AI triage, and unlock rescue recipes and transforms." />
+                )}
+                <DietaryPicker prefs={prefs} onToggle={toggle} onClear={clear} compact />
+              </>
             )}
-            <DietaryPicker prefs={prefs} onToggle={toggle} onClear={clear} compact />
           </div>
         )}
+
 
         {imageDataUrl && (
           <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
@@ -668,32 +709,37 @@ const STORAGE_OPTS: { id: StorageOpt; label: string }[] = [
   { id: "freezer", label: "Freezer" },
   { id: "pantry", label: "Pantry" },
   { id: "counter", label: "Counter" },
-  { id: "delivery-just-arrived", label: "Just brought home" },
+];
+const STORAGE_EXTRA: { id: StorageOpt; label: string }[] = [
+  { id: "delivery-just-arrived", label: "Just brought it home" },
 ];
 const PACKAGING_OPTS: { id: PackagingOpt; label: string }[] = [
   { id: "sealed", label: "Sealed" },
   { id: "opened", label: "Opened" },
-  { id: "loose", label: "Loose / uncovered" },
+  { id: "loose", label: "Loose / Uncovered" },
   { id: "mixed", label: "Mixed" },
 ];
 const SOURCE_OPTS: { id: SourceOpt; label: string }[] = [
-  { id: "grocery-store", label: "Grocery store" },
+  { id: "grocery-store", label: "Grocery Store" },
+  { id: "leftovers-from-home", label: "Home Leftovers" },
+  { id: "restaurant-takeout", label: "Restaurant Leftovers" },
+  { id: "farmers-market", label: "Farmers Market" },
+];
+const SOURCE_EXTRA: { id: SourceOpt; label: string }[] = [
   { id: "delivery", label: "Brought home from store" },
-  { id: "farmers-market", label: "Farmers market" },
-  { id: "leftovers-from-home", label: "Home leftovers" },
-  { id: "restaurant-takeout", label: "Dining-out leftovers" },
   { id: "other", label: "Other" },
 ];
 const DAYS_OPTS: { v: number; label: string }[] = [
   { v: 0, label: "Today" },
-  { v: 1, label: "1d" },
-  { v: 2, label: "2d" },
-  { v: 3, label: "3d" },
-  { v: 5, label: "5d" },
-  { v: 7, label: "1w" },
-  { v: 14, label: "2w" },
-  { v: 30, label: "1m" },
+  { v: 2, label: "1–3 Days Ago" },
+  { v: 5, label: "4–7 Days Ago" },
+  { v: 10, label: "1–2 Weeks Ago" },
+  { v: 30, label: "Older" },
 ];
+
+function labelFor<T extends string>(opts: { id: T; label: string }[], v: T) {
+  return opts.find((o) => o.id === v)?.label ?? String(v);
+}
 
 function ScanContextForm({
   storage,
@@ -704,6 +750,7 @@ function ScanContextForm({
   setSource,
   purchasedDaysAgo,
   setPurchasedDaysAgo,
+  onComplete,
 }: {
   storage: StorageOpt;
   setStorage: (v: StorageOpt) => void;
@@ -713,86 +760,246 @@ function ScanContextForm({
   setSource: (v: SourceOpt) => void;
   purchasedDaysAgo: number;
   setPurchasedDaysAgo: (v: number) => void;
+  onComplete?: () => void;
 }) {
-  return (
-    <Card className="ring-paper border-border/60 bg-card p-5">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-accent">
-        Scan context — better freshness estimates
-      </div>
-      <h3 className="mt-1 font-display text-xl">Tell us about the food</h3>
-      <p className="text-sm text-muted-foreground">
-        These details let Chef Super J calibrate time-left, flag unsafe items, and prioritize what to use first.
-      </p>
+  const [q, setQ] = useState(0);
 
-      <div className="mt-4 space-y-4">
-        <ChipGroup label="Where is it stored?" value={storage} onChange={setStorage} options={STORAGE_OPTS} />
-        <ChipGroup label="Packaging" value={packaging} onChange={setPackaging} options={PACKAGING_OPTS} />
-        <ChipGroup label="Source" value={source} onChange={setSource} options={SOURCE_OPTS} />
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Purchased / cooked
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {DAYS_OPTS.map((d) => {
-              const active = purchasedDaysAgo === d.v;
-              return (
-                <button
-                  key={d.v}
-                  type="button"
-                  onClick={() => setPurchasedDaysAgo(d.v)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs transition-colors",
-                    active
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border/70 bg-background text-foreground hover:border-primary/50 hover:bg-primary/5",
-                  )}
-                >
-                  {d.label}
-                </button>
-              );
-            })}
-          </div>
+  function advance() {
+    if (q < 3) setQ(q + 1);
+    else onComplete?.();
+  }
+
+  return (
+    <Card className="ring-paper border-border/60 bg-card p-6 sm:p-8">
+      <div className="mb-6">
+        <div className="mb-2 flex items-center justify-between text-sm">
+          <span className="font-semibold text-foreground">Question {q + 1} of 4</span>
+          <span className="text-muted-foreground">{4 - (q + 1)} left</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={cn("h-1.5 flex-1 rounded-full", i <= q ? "bg-primary" : "bg-secondary")}
+            />
+          ))}
         </div>
       </div>
+
+      {q === 0 && (
+        <BigQuestion title="Where is the food?">
+          <BigGrid
+            value={storage}
+            onChange={(v) => {
+              setStorage(v);
+              advance();
+            }}
+            options={STORAGE_OPTS}
+          />
+          <SmallOptions
+            value={storage}
+            onChange={(v) => {
+              setStorage(v);
+              advance();
+            }}
+            options={STORAGE_EXTRA}
+            alwaysOpen
+          />
+        </BigQuestion>
+      )}
+
+      {q === 1 && (
+        <BigQuestion title="How is it packaged?">
+          <BigGrid
+            value={packaging}
+            onChange={(v) => {
+              setPackaging(v);
+              advance();
+            }}
+            options={PACKAGING_OPTS}
+          />
+        </BigQuestion>
+      )}
+
+      {q === 2 && (
+        <BigQuestion title="Where did it come from?">
+          <BigGrid
+            value={source}
+            onChange={(v) => {
+              setSource(v);
+              advance();
+            }}
+            options={SOURCE_OPTS}
+          />
+          <SmallOptions
+            value={source}
+            onChange={(v) => {
+              setSource(v);
+              advance();
+            }}
+            options={SOURCE_EXTRA}
+          />
+        </BigQuestion>
+      )}
+
+      {q === 3 && (
+        <BigQuestion title="When was it purchased or cooked?">
+          <div className="grid gap-3">
+            {DAYS_OPTS.map((d) => (
+              <BigButton
+                key={d.v}
+                active={purchasedDaysAgo === d.v}
+                label={d.label}
+                onClick={() => {
+                  setPurchasedDaysAgo(d.v);
+                  advance();
+                }}
+              />
+            ))}
+          </div>
+        </BigQuestion>
+      )}
+
+      {q > 0 && (
+        <button
+          type="button"
+          onClick={() => setQ(q - 1)}
+          className="mt-6 text-base text-muted-foreground underline-offset-4 hover:underline"
+        >
+          Back
+        </button>
+      )}
     </Card>
   );
 }
 
-function ChipGroup<T extends string>({
+function ScanContextSummary({
+  storage,
+  packaging,
+  source,
+  purchasedDaysAgo,
+  onEdit,
+}: {
+  storage: StorageOpt;
+  packaging: PackagingOpt;
+  source: SourceOpt;
+  purchasedDaysAgo: number;
+  onEdit: () => void;
+}) {
+  const parts = [
+    labelFor([...STORAGE_OPTS, ...STORAGE_EXTRA], storage),
+    labelFor(PACKAGING_OPTS, packaging),
+    labelFor([...SOURCE_OPTS, ...SOURCE_EXTRA], source),
+    DAYS_OPTS.find((d) => d.v === purchasedDaysAgo)?.label ?? "Today",
+  ];
+  return (
+    <Card className="ring-paper flex items-center justify-between gap-4 border-border/60 bg-card p-5">
+      <p className="min-w-0 text-lg font-medium leading-snug">{parts.join(" · ")}</p>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="shrink-0 text-base font-semibold text-primary underline-offset-4 hover:underline"
+      >
+        Change
+      </button>
+    </Card>
+  );
+}
+
+function BigQuestion({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="font-display text-3xl leading-tight sm:text-4xl">{title}</h3>
+      <div className="mt-7">{children}</div>
+    </div>
+  );
+}
+
+function BigButton({
+  active,
   label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full rounded-2xl border-2 px-5 py-6 text-xl font-semibold transition-colors",
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border/70 bg-background text-foreground hover:border-primary/60 hover:bg-primary/10",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function BigGrid<T extends string>({
   value,
   onChange,
   options,
 }: {
-  label: string;
   value: T;
   onChange: (v: T) => void;
   options: { id: T; label: string }[];
 }) {
   return (
-    <div>
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {options.map((o) => {
-          const active = value === o.id;
-          return (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => onChange(o.id)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs transition-colors",
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border/70 bg-background text-foreground hover:border-primary/50 hover:bg-primary/5",
-              )}
-            >
-              {o.label}
-            </button>
-          );
-        })}
-      </div>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {options.map((o) => (
+        <BigButton key={o.id} active={value === o.id} label={o.label} onClick={() => onChange(o.id)} />
+      ))}
     </div>
   );
 }
+
+function SmallOptions<T extends string>({
+  value,
+  onChange,
+  options,
+  alwaysOpen,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { id: T; label: string }[];
+  alwaysOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(!!alwaysOpen);
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-5 text-base text-muted-foreground underline-offset-4 hover:underline"
+      >
+        More options
+      </button>
+    );
+  }
+  return (
+    <div className="mt-5 flex flex-wrap gap-3">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          className={cn(
+            "rounded-full border px-5 py-3 text-base transition-colors",
+            value === o.id
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border/70 bg-background text-foreground hover:border-primary/60",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 

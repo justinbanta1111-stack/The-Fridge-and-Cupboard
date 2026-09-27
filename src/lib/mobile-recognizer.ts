@@ -3,6 +3,8 @@
 // MediaRecorder chunk issues while preserving the same hands-free loop.
 
 import { transcribeVoice } from "./transcribe-voice.functions";
+import { markMicStarted, markMicStopped } from "./mic-activity";
+import { releaseAudioGate } from "./audio-gate";
 
 export type MobileRecognizerListener = {
   onPartial?: (t: string) => void;
@@ -17,6 +19,8 @@ export class MobileRecognizer {
   private ctx: AudioContext | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
   private processor: ScriptProcessorNode | null = null;
+  private sink: GainNode | null = null;
+  private micMarked = false;
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private hardCap: ReturnType<typeof setTimeout> | null = null;
   private chunks: BlobPart[] = [];
@@ -37,10 +41,23 @@ export class MobileRecognizer {
 
   async start(listener: MobileRecognizerListener) {
     this.listener = listener;
+    // Release the barge-in monitor's microphone first: two concurrent capture
+    // streams on iOS can force the loud speaker route and cause howling.
+    try {
+      releaseAudioGate();
+    } catch {
+      /* ignore */
+    }
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
+      this.micMarked = true;
+      markMicStarted();
     } catch {
       listener.onError?.("Microphone access blocked. Allow microphone, then try again.");
       listener.onEnd?.();
@@ -82,16 +99,32 @@ export class MobileRecognizer {
     this.processor = processor;
 
     this.startedAt = Date.now();
-    this.hardCap = setTimeout(() => this.finishSoft(), 20000);
+    // On hard cap ALWAYS transcribe whatever we captured — iPhone Safari's
+    // aggressive echo-cancellation can keep RMS below any speech threshold
+    // even when the user is clearly talking. Sending silence to Whisper is
+    // cheap and returns empty text; NOT sending means the loop stalls with
+    // no assistant response, which is the exact bug we're fixing.
+    this.hardCap = setTimeout(() => {
+      this.forceTranscribe = true;
+      this.finishSoft();
+    }, 10000);
 
     let speechFrames = 0;
-    let noiseFloor = 0.006;
+    let noiseFloor = 0.004;
     let audioFrames = 0;
-    const SPEECH_FLOOR_RMS = 0.012;
-    const MAYBE_SPEECH_RMS = 0.008;
-    const SPEECH_FRAMES_REQUIRED = 2;
-    const SILENCE_MS = 900;
-    const MIN_WAIT_FOR_SPEECH_MS = 8000;
+    const SPEECH_FLOOR_RMS = 0.008;
+    const MAYBE_SPEECH_RMS = 0.005;
+    // Three frames (~280ms) of voice-shaped audio. A pan clatter, a drawer or
+    // a footstep is shorter and much noisier than this, so it never counts.
+    const SPEECH_FRAMES_REQUIRED = 3;
+    // Zero-crossing rate window that human speech lives in. Impulsive kitchen
+    // noise and hiss sit well above it; hums and thuds sit well below it.
+    const ZCR_MIN = 0.015;
+    const ZCR_MAX = 0.32;
+    // A natural pause commits the turn quickly, while still leaving enough
+    // room for a brief mid-sentence breath.
+    const SILENCE_MS = 1100;
+    const MIN_WAIT_FOR_SPEECH_MS = 6000;
 
     processor.onaudioprocess = (event) => {
       if (this.stopped) return;
@@ -119,8 +152,17 @@ export class MobileRecognizer {
         noiseFloor = noiseFloor * 0.96 + Math.min(rms, 0.03) * 0.04;
       }
 
+      let crossings = 0;
+      for (let i = 1; i < input.length; i += 1) {
+        if ((input[i - 1] < 0 && input[i] >= 0) || (input[i - 1] >= 0 && input[i] < 0)) {
+          crossings += 1;
+        }
+      }
+      const zcr = crossings / Math.max(1, input.length);
+      const voiceShaped = zcr >= ZCR_MIN && zcr <= ZCR_MAX;
+
       const threshold = Math.max(SPEECH_FLOOR_RMS, noiseFloor * 2.2);
-      if (rms >= threshold) {
+      if (rms >= threshold && voiceShaped) {
         speechFrames += 1;
         if (speechFrames >= SPEECH_FRAMES_REQUIRED) {
           this.hasSpoken = true;
@@ -145,8 +187,15 @@ export class MobileRecognizer {
       }
     };
 
+    // Safari only fires onaudioprocess when the node is connected, but the
+    // mic must NEVER reach the speaker. Route through a fully muted sink so
+    // there is no possible mic-to-speaker feedback path.
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    this.sink = sink;
     source.connect(processor);
-    processor.connect(ctx.destination);
+    processor.connect(sink);
+    sink.connect(ctx.destination);
 
     window.setTimeout(() => {
       if (!this.stopped && audioFrames === 0) {
@@ -158,7 +207,12 @@ export class MobileRecognizer {
   }
 
   private startMediaRecorderFallback(listener: MobileRecognizerListener) {
-    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4;codecs=mp4a.40.2", "audio/mp4"];
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4;codecs=mp4a.40.2",
+      "audio/mp4",
+    ];
     let mimeType = "";
     if (typeof MediaRecorder !== "undefined") {
       for (const m of candidates) {
@@ -174,7 +228,9 @@ export class MobileRecognizer {
     }
 
     try {
-      this.recorder = mimeType ? new MediaRecorder(this.stream!, { mimeType }) : new MediaRecorder(this.stream!);
+      this.recorder = mimeType
+        ? new MediaRecorder(this.stream!, { mimeType })
+        : new MediaRecorder(this.stream!);
       this.mimeType = this.recorder.mimeType || mimeType || "audio/webm";
     } catch {
       this.cleanupStream();
@@ -196,7 +252,10 @@ export class MobileRecognizer {
       this.hasSpoken = true;
       this.forceTranscribe = true;
       this.hardCap = setTimeout(() => this.finishSoft(), 7000);
-      console.info("[voice] MOBILE_MIC_LISTENING", { mode: "media-recorder", mimeType: this.mimeType });
+      console.info("[voice] MOBILE_MIC_LISTENING", {
+        mode: "media-recorder",
+        mimeType: this.mimeType,
+      });
     } catch {
       this.cleanupStream();
       listener.onError?.("Couldn't start the microphone. Tap again.");
@@ -219,7 +278,9 @@ export class MobileRecognizer {
     this.hardCap = null;
     try {
       if (this.recorder && this.recorder.state !== "inactive") {
-        try { this.recorder.requestData(); } catch {}
+        try {
+          this.recorder.requestData();
+        } catch {}
         this.recorder.stop();
       } else {
         void this.handleStop();
@@ -230,8 +291,20 @@ export class MobileRecognizer {
   }
 
   private cleanupStream() {
-    try { this.processor?.disconnect(); } catch {}
-    try { this.source?.disconnect(); } catch {}
+    if (this.micMarked) {
+      this.micMarked = false;
+      markMicStopped();
+    }
+    try {
+      this.sink?.disconnect();
+    } catch {}
+    this.sink = null;
+    try {
+      this.processor?.disconnect();
+    } catch {}
+    try {
+      this.source?.disconnect();
+    } catch {}
     this.processor = null;
     this.source = null;
     try {
@@ -251,37 +324,52 @@ export class MobileRecognizer {
   private async handleStop() {
     const listener = this.listener;
     this.listener = null;
+    const captured = {
+      pcmChunks: this.pcmChunks.length,
+      mediaChunks: this.chunks.length,
+      maxRms: this.maxRms,
+      hasSpoken: this.hasSpoken,
+      forced: this.forceTranscribe,
+      elapsedMs: Date.now() - this.startedAt,
+    };
+    console.info("[voice] MOBILE_RECORDING_STOPPED", captured);
     this.cleanupStream();
     if (!listener) return;
     if (this.aborted) {
-      listener.onEnd?.();
-      return;
-    }
-    const shouldTranscribe = this.hasSpoken || this.forceTranscribe;
-    if (!shouldTranscribe) {
+      console.info("[voice] MOBILE_ABORTED — user cancel, skipping transcription");
       listener.onEnd?.();
       return;
     }
 
-    const blob = this.pcmChunks.length > 0
-      ? encodeWav(this.pcmChunks, this.sampleRate)
-      : new Blob(this.chunks, { type: this.mimeType });
+    const blob =
+      this.pcmChunks.length > 0
+        ? encodeWav(this.pcmChunks, this.sampleRate)
+        : new Blob(this.chunks, { type: this.mimeType });
     this.chunks = [];
     this.pcmChunks = [];
     if (blob.size < 2048) {
+      console.warn("[voice] MOBILE_BLOB_TOO_SMALL — skipping transcription", { bytes: blob.size });
       listener.onEnd?.();
       return;
     }
     try {
-      console.info("[voice] MOBILE_TRANSCRIBE_SENT", { bytes: blob.size, mimeType: blob.type || this.mimeType });
+      console.info("[voice] MOBILE_TRANSCRIBE_SENT", {
+        bytes: blob.size,
+        mimeType: blob.type || this.mimeType,
+      });
       const base64 = await blobToBase64(blob);
       const { text } = await transcribeVoice({
         data: { audioBase64: base64, mimeType: blob.type || this.mimeType },
       });
       const cleaned = (text || "").trim();
-      console.info("[voice] MOBILE_TRANSCRIBE_DONE", { hasText: !!cleaned, chars: cleaned.length });
+      console.info("[voice] MOBILE_TRANSCRIBE_DONE", {
+        hasText: !!cleaned,
+        chars: cleaned.length,
+        preview: cleaned.slice(0, 80),
+      });
       if (cleaned) listener.onFinal(cleaned);
     } catch (err) {
+      console.error("[voice] MOBILE_TRANSCRIBE_FAILED", err);
       listener.onError?.(err instanceof Error ? err.message : "Transcription failed.");
     } finally {
       listener.onEnd?.();
@@ -324,7 +412,11 @@ function encodeWav(chunks: Float32Array[], inputSampleRate: number): Blob {
   return new Blob([view], { type: "audio/wav" });
 }
 
-function downsampleBuffer(buffer: Float32Array, inputSampleRate: number, outputSampleRate: number): Float32Array {
+function downsampleBuffer(
+  buffer: Float32Array,
+  inputSampleRate: number,
+  outputSampleRate: number,
+): Float32Array {
   if (inputSampleRate <= outputSampleRate) return buffer;
   const ratio = inputSampleRate / outputSampleRate;
   const newLength = Math.max(1, Math.round(buffer.length / ratio));
@@ -358,10 +450,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
   let binary = "";
   const chunkSize = 0x8000;
   for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(
-      null,
-      Array.from(bytes.subarray(i, i + chunkSize)),
-    );
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
   }
   return btoa(binary);
 }

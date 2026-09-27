@@ -14,17 +14,11 @@ export const REQUIRED_SECRETS: Record<WorkflowId, WorkflowSecretSpec> = {
     label: 'iOS — TestFlight',
     required: [
       'IOS_TEAM_ID',
-      'IOS_BUNDLE_ID',
-      'IOS_SIGNING_IDENTITY',
-      'IOS_CERTIFICATE_BASE64',
-      'IOS_CERTIFICATE_PASSWORD',
-      'IOS_KEYCHAIN_PASSWORD',
-      'IOS_PROVISIONING_PROFILE_BASE64',
-      'APP_STORE_CONNECT_API_KEY_ID',
+      'ASC_KEY_ID',
       'APP_STORE_CONNECT_API_ISSUER_ID',
-      'APP_STORE_CONNECT_API_KEY_BASE64',
+      'APP_STORE_CONNECT_API_KEY_P8',
     ],
-    optional: ['IOS_APS_ENVIRONMENT'],
+    optional: ['IOS_BUNDLE_ID'],
   },
   'android-play-internal.yml': {
     label: 'Android — Play Internal',
@@ -89,7 +83,7 @@ export const SECRET_SOURCES: Record<string, SecretSource> = {
     url: 'https://developer.apple.com/account/resources/profiles/list',
     hint: 'base64 -i profile.mobileprovision | pbcopy',
   },
-  APP_STORE_CONNECT_API_KEY_ID: {
+  ASC_KEY_ID: {
     description: 'App Store Connect API key ID (10-char).',
     where: 'App Store Connect → Users and Access → Integrations → App Store Connect API.',
     url: 'https://appstoreconnect.apple.com/access/integrations/api',
@@ -99,10 +93,10 @@ export const SECRET_SOURCES: Record<string, SecretSource> = {
     where: 'Same page as the Key ID (top of the Integrations table).',
     url: 'https://appstoreconnect.apple.com/access/integrations/api',
   },
-  APP_STORE_CONNECT_API_KEY_BASE64: {
-    description: '.p8 private key for the API key, base64-encoded.',
+  APP_STORE_CONNECT_API_KEY_P8: {
+    description: '.p8 private key contents for the API key.',
     where: 'Downloaded once when creating the API key in App Store Connect.',
-    hint: 'base64 -i AuthKey_XXXX.p8 | pbcopy',
+    hint: 'Paste the full AuthKey_XXXX.p8 contents including BEGIN/END lines.',
   },
   IOS_APS_ENVIRONMENT: {
     description: 'Push entitlement value: "development" or "production".',

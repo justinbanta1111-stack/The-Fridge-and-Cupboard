@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Sparkles, Crown, LogIn, ArrowRight, Gift } from "lucide-react";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { useCanSell } from "@/hooks/use-store-purchases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSubscription } from "@/hooks/use-subscription";
 import {
   closeInstallModal,
   consumePendingCheckout,
@@ -11,8 +13,10 @@ import {
 } from "@/lib/checkout-intent";
 
 export function PlanBanners() {
+  const canSell = useCanSell();
   const { openCheckout, checkoutElement } = useStripeCheckout();
   const [user, setUser] = useState<any>(null);
+  const { isActive: hasSubscription } = useSubscription();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -56,6 +60,9 @@ export function PlanBanners() {
   };
 
   const startTrial = () => startCheckout("premium_monthly");
+
+  // Signed-in members never see pricing or upgrade advertising here.
+  if (!canSell || hasSubscription || user) return null;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">

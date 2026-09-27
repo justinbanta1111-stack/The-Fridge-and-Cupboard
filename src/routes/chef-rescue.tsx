@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { SiteNav } from "@/components/SiteNav";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { ScanAuthGate } from "@/components/ScanAuthGate";
+import { ensureGuestSession } from "@/lib/guest";
 import { DietaryPicker } from "@/components/DietaryPicker";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
 import { rescueCook } from "@/lib/fridge.functions";
@@ -126,12 +127,20 @@ function ChefRescuePage() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   useEffect(() => {
     let active = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (active) setSignedIn(!!data.user);
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (data.user) return active && setSignedIn(true);
+      // Free to try: guests get an anonymous session automatically.
+      try {
+        await ensureGuestSession();
+        if (active) setSignedIn(true);
+      } catch {
+        if (active) setSignedIn(false);
+      }
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
-      setSignedIn(!!s?.user),
-    );
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (s?.user) setSignedIn(true);
+    });
+
     return () => {
       active = false;
       sub.subscription.unsubscribe();
@@ -139,7 +148,7 @@ function ChefRescuePage() {
   }, []);
 
   const dietary = useDietaryPrefs();
-  const restrictions = useMemo(() => dietary.prefs.map((p) => String(p)), [dietary.prefs]);
+  const restrictions = dietary.restrictions;
   const dashboardFn = useServerFn(getRescueDashboard);
   const dashboard = useQuery({
     queryKey: ["rescue-dashboard"],
