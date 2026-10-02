@@ -57,6 +57,9 @@ const INACTIVE: NativeEntitlement = { active: false, productId: null, expiresAt:
 export const STORE_UNAVAILABLE =
   "The App Store isn't available right now. Please check your connection and try again.";
 
+/** RevenueCat public iOS SDK key (publishable, safe to ship in the app). */
+export const REVENUECAT_IOS_PUBLIC_KEY = "appl_pYJSbZdYdRRtLJJpOzJQnoylfkF";
+
 type PurchasesModule = any;
 
 let sdkPromise: Promise<PurchasesModule | null> | null = null;
@@ -66,15 +69,22 @@ async function loadSdk(): Promise<PurchasesModule | null> {
   if (!sdkPromise) {
     sdkPromise = (async () => {
       try {
-        const specifier = "@revenuecat/purchases-capacitor";
-        const mod: any = await import(/* @vite-ignore */ specifier);
+        // Must be a literal import so the plugin is bundled into the app.
+        const mod: any = await import("@revenuecat/purchases-capacitor");
         const Purchases = mod?.Purchases ?? mod?.default?.Purchases;
         if (!Purchases) return null;
         const apiKey = isIosApp()
-          ? import.meta.env["VITE_REVENUECAT_IOS_KEY"]
+          ? (import.meta.env["VITE_REVENUECAT_IOS_KEY"] || REVENUECAT_IOS_PUBLIC_KEY)
           : import.meta.env["VITE_REVENUECAT_ANDROID_KEY"];
         if (!apiKey) return null;
         await Purchases.configure({ apiKey });
+        try {
+          const { supabase } = await import("@/integrations/supabase/client");
+          const { data } = await supabase.auth.getUser();
+          if (data.user?.id) await Purchases.logIn({ appUserID: data.user.id });
+        } catch {
+          /* anonymous purchases still work */
+        }
         return Purchases;
       } catch {
         return null;
@@ -90,15 +100,34 @@ export async function isNativeBillingReady(): Promise<boolean> {
 }
 
 function toEntitlement(info: any): NativeEntitlement {
-  const entitlements = info?.customerInfo?.entitlements?.active ?? info?.entitlements?.active ?? {};
-  const first: any = Object.values(entitlements)[0];
-  if (!first) return INACTIVE;
-  const productId = String(first.productIdentifier ?? "") as NativeProductId;
-  return {
-    active: true,
-    productId: productId in NATIVE_PRODUCTS ? productId : null,
-    expiresAt: first.expirationDate ?? null,
-  };
+  const ci = info?.customerInfo ?? info ?? {};
+  const active: any[] = Object.values(ci?.entitlements?.active ?? {});
+  const subs: string[] = ci?.activeSubscriptions ?? [];
+  const ids = [...active.map((e) => String(e?.productIdentifier ?? "")), ...subs];
+  // Premium wins if both are somehow active.
+  const productId: NativeProductId | null = ids.some((i) => i.startsWith("pro.premium.monthly"))
+    ? "pro.premium.monthly"
+    : ids.some((i) => i.startsWith("pro.standard.monthly"))
+      ? "pro.standard.monthly"
+      : null;
+  if (!productId) return INACTIVE;
+  const match = active.find((e) => String(e?.productIdentifier ?? "").startsWith(productId));
+  return { active: true, productId, expiresAt: match?.expirationDate ?? null };
+}
+
+/** Thrown when the shopper closes Apple's sheet — not an error to show. */
+export class PurchaseCancelledError extends Error {
+  constructor() {
+    super("Purchase cancelled");
+    this.name = "PurchaseCancelledError";
+  }
+}
+
+function isCancel(e: any): boolean {
+  return Boolean(
+    e?.userCancelled || e?.code === "1" || e?.code === 1 ||
+      /cancel/i.test(String(e?.code ?? "")) || /cancel/i.test(String(e?.message ?? "")),
+  );
 }
 
 /** Launch the platform purchase sheet for the given subscription. */
@@ -108,8 +137,15 @@ export async function startNativePurchase(productId: NativeProductId): Promise<N
   const { products } = await Purchases.getProducts({ productIdentifiers: [productId] });
   const product = products?.[0];
   if (!product) throw new Error("That subscription isn't available on this device right now.");
-  const result = await Purchases.purchaseStoreProduct({ product });
-  return toEntitlement(result);
+  try {
+    const result = await Purchases.purchaseStoreProduct({ product });
+    const ent = toEntitlement(result);
+    notifyEntitlementChanged();
+    return ent;
+  } catch (e) {
+    if (isCancel(e)) throw new PurchaseCancelledError();
+    throw new Error("The purchase couldn't be completed. Nothing was charged.");
+  }
 }
 
 /** Apple + Google require a visible "Restore Purchases" entry in the UI. */
@@ -121,6 +157,7 @@ export async function restoreNativePurchases(): Promise<NativeEntitlement> {
     throw new Error(STORE_UNAVAILABLE);
   }
   const result = await Purchases.restorePurchases();
+  notifyEntitlementChanged();
   return toEntitlement(result);
 }
 
@@ -156,4 +193,10 @@ export const NATIVE_TO_INTERNAL: Record<NativeProductId, "pro_standard_monthly" 
 /** Map a Stripe price lookup key used across the web UI to a store product. */
 export function nativeProductForPriceId(priceId: string): NativeProductId {
   return /premium/i.test(priceId) ? "pro.premium.monthly" : "pro.standard.monthly";
+}
+
+/** Lets the subscription hook refresh right after a purchase or restore. */
+export const ENTITLEMENT_EVENT = "native-entitlement-changed";
+function notifyEntitlementChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(ENTITLEMENT_EVENT));
 }

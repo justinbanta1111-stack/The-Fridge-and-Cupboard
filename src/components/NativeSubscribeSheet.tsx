@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   NATIVE_PRODUCTS,
+  PurchaseCancelledError,
   restoreNativePurchases,
   startNativePurchase,
   type NativeProductId,
@@ -50,6 +51,7 @@ export function NativeSubscribeSheet({
         setError("The purchase didn't complete. Nothing was charged.");
       }
     } catch (e: any) {
+      if (e instanceof PurchaseCancelledError) return; // shopper closed Apple's sheet
       setError(e?.message ?? "The purchase couldn't be completed. Nothing was charged.");
     } finally {
       setBusy(null);

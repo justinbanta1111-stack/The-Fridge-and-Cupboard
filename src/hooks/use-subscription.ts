@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { everythingUnlockedHere } from "@/lib/store-purchases";
+import { isNativeApp } from "@/lib/native-runtime";
+import { ENTITLEMENT_EVENT, getNativeEntitlement, NATIVE_TO_INTERNAL, type NativeEntitlement } from "@/lib/native-billing";
 
 export type SubscriptionTier = "free" | "standard" | "premium";
 
@@ -119,6 +121,17 @@ export function useSubscription(): SubscriptionState {
     };
   }, [userId, load]);
 
+  // Apple / Google purchases made inside the installed app.
+  const [nativeEnt, setNativeEnt] = useState<NativeEntitlement | null>(null);
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const read = () => getNativeEntitlement().then(setNativeEnt).catch(() => {});
+    read();
+    window.addEventListener(ENTITLEMENT_EVENT, read);
+    return () => window.removeEventListener(ENTITLEMENT_EVENT, read);
+  }, []);
+  const nativeActive = !!nativeEnt?.active && !!nativeEnt.productId;
+
   const status = row?.status ?? null;
   const periodEnd = row?.current_period_end ?? null;
   const rowActive = isStatusActive(status, periodEnd);
@@ -128,10 +141,16 @@ export function useSubscription(): SubscriptionState {
   const [openEverything, setOpenEverything] = useState(false);
   useEffect(() => setOpenEverything(everythingUnlockedHere()), []);
 
-  const active = rowActive || openEverything;
-  const tier: SubscriptionTier = rowActive
-    ? classify(row?.price_id ?? null)
-    : openEverything
+  const active = rowActive || nativeActive || openEverything;
+  const nativeTier: SubscriptionTier = nativeActive
+    ? classify(NATIVE_TO_INTERNAL[nativeEnt!.productId!])
+    : "free";
+  const rowTier: SubscriptionTier = rowActive ? classify(row?.price_id ?? null) : "free";
+  const tier: SubscriptionTier = rowTier === "premium" || nativeTier === "premium"
+    ? "premium"
+    : rowActive || nativeActive
+      ? "standard"
+      : openEverything
       ? "premium"
       : "free";
 

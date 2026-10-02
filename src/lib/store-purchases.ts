@@ -13,11 +13,12 @@
  *     open so nothing in the app is a dead end.
  */
 import { isIosApp, isNativeApp } from "@/lib/native-runtime";
+import { REVENUECAT_IOS_PUBLIC_KEY } from "@/lib/native-billing";
 
 /** True when store billing keys are configured for this build. */
 export function storeBillingConfigured(): boolean {
   const env = import.meta.env as Record<string, string | undefined>;
-  const key = isIosApp() ? env["VITE_REVENUECAT_IOS_KEY"] : env["VITE_REVENUECAT_ANDROID_KEY"];
+  const key = isIosApp() ? (env["VITE_REVENUECAT_IOS_KEY"] || REVENUECAT_IOS_PUBLIC_KEY) : env["VITE_REVENUECAT_ANDROID_KEY"];
   return Boolean(key);
 }
 
