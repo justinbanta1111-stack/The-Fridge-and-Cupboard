@@ -4,6 +4,7 @@ import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 import { useCanSell } from "@/hooks/use-store-purchases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isNativeApp } from "@/lib/native-runtime";
 import { useSubscription } from "@/hooks/use-subscription";
 import {
   closeInstallModal,
@@ -19,9 +20,9 @@ export function PlanBanners() {
   const { isActive: hasSubscription } = useSubscription();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
+    supabase.auth.getUser().then(({ data }) => setUser(data.user && !data.user.is_anonymous ? data.user : null));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
+      setUser(session?.user && !session.user.is_anonymous ? session.user : null);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -42,6 +43,13 @@ export function PlanBanners() {
 
   const startCheckout = (priceId: CheckoutPriceId) => {
     closeInstallModal();
+    // Installed app: always open Apple's/Google's purchase sheet directly.
+    // Store purchases don't need a website account or Stripe, and App
+    // Review must reach the sheet without signing in.
+    if (isNativeApp()) {
+      openCheckout({ priceId });
+      return;
+    }
     if (!stripeReady) {
       toast.message("Checkout isn't live yet — please try again shortly.");
       return;
@@ -61,8 +69,8 @@ export function PlanBanners() {
 
   const startTrial = () => startCheckout("premium_monthly");
 
-  // Signed-in members never see pricing or upgrade advertising here.
-  if (!canSell || hasSubscription || user) return null;
+  // Hidden only for a signed-in customer with a live trial or paid plan.
+  if (!canSell || (hasSubscription && user)) return null;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">

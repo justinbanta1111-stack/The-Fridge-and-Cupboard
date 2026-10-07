@@ -394,8 +394,33 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
           restrictions,
         },
       }),
-    onSuccess: (r) => setChefTake(r),
+    onSuccess: (r) => {
+      setChefTake(r);
+      const plan = (r?.plan ?? []).slice(0, 3).map((p: { title: string }) => p.title);
+      const line = [
+        r?.reaction,
+        plan.length ? `You could make ${plan.slice(0, -1).join(", ")}${plan.length > 1 ? " or " : ""}${plan[plan.length - 1]}.` : "",
+        r?.question,
+      ].filter(Boolean).join(" ");
+      chefSayThenListen(line);
+    },
   });
+
+  // Speak a line, remember it in the conversation, then reopen the mic so
+  // the person can just answer — no extra tap needed.
+  function chefSayThenListen(text: string) {
+    if (!text) return;
+    try { window.dispatchEvent(new CustomEvent("tfc:chef-said", { detail: { text } })); } catch {}
+    const listen = () => {
+      try { window.dispatchEvent(new CustomEvent("tfc:open-chef-voice", { detail: { autoListen: true } })); } catch {}
+    };
+    let done = false;
+    const once = () => { if (!done) { done = true; listen(); } };
+    try {
+      const ok = speakNow(text, { onEnd: once, onError: () => once() });
+      if (!ok) once();
+    } catch { once(); }
+  }
 
   // Spoken reassurance while a photo is being read, so the kitchen never goes
   // silent for a long stretch. Speech is a no-op when voice is muted.
@@ -418,14 +443,24 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
       }),
     onMutate: () => {
       try {
-        speakNow("Let me take a look.");
+        speakNow("Got it — let me take a look.");
         clearAlmostThere();
         almostThereRef.current = setTimeout(() => speakNow("Almost there."), 9000);
       } catch {}
     },
     onSettled: () => clearAlmostThere(),
-    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+    onError: (e: unknown) => {
+      clearAlmostThere();
+      toast.error(getErrorMessage(e));
+      const msg = (e as Error)?.message ?? "";
+      chefSayThenListen(
+        msg.startsWith("NO_ITEMS:")
+          ? "I couldn't clearly make out any food in that photo. Could you take another one with more light, with the door open, or tell me what's in there?"
+          : "Sorry, I had trouble reading that photo. Tap try again, or tell me what you have and I'll help from there.",
+      );
+    },
     onSuccess: (result) => {
+      clearAlmostThere();
       const usable = result.items.filter((i) => i.freshness !== "throw-out" && !i.unsafe);
       try { recordScan(result.items.map((i) => i.name)); } catch {}
       // Remember what the chef just saw so the conversation can continue from it.
@@ -448,7 +483,14 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
         try { incrementGuestScanCount(); } catch {}
         try { recordFreeScan(freeScanKindFor(storage)); } catch {}
       }
-      if (usable.length === 0) return;
+      if (usable.length === 0) {
+        chefSayThenListen(
+          result.items.length
+            ? `I can see ${result.items.slice(0, 4).map((i) => i.name).join(", ")}, but nothing I'd safely cook with. Could you show me another shelf, or tell me what else you have?`
+            : "I couldn't clearly see any food in that photo. Could you take another one with better light, or tell me what's in there?",
+        );
+        return;
+      }
       const sorted = [...usable].sort((a, b) => {
         const la = a.category === "leftover" ? 0 : 1;
         const lb = b.category === "leftover" ? 0 : 1;
@@ -667,19 +709,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                  <Hero onTryItFree={scrollToScan} showTryItFree={showSignupBlocks} />
                  <HomeFourCards onUseExistingPhoto={handleQuickAction} />
 
-                 {/* Secondary section: personalization for allergies & diets — never the first thing people see */}
-                 <section className="mx-auto mt-3 w-full max-w-4xl border-y border-primary/25 bg-primary/5 px-4 py-4 sm:mt-4 sm:px-6">
-                   <div className="flex items-start gap-3 sm:items-center">
-                     <ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-primary sm:mt-0" aria-hidden />
-                     <div className="min-w-0 flex-1">
-                       <h2 className="font-display text-lg font-bold leading-tight sm:text-xl">Food Allergies, Health Conditions, or Special Diet?</h2>
-                       <p className="mt-1 text-sm leading-relaxed text-muted-foreground">The Fridge & Cupboard is for everyone — and it can also personalize your meals. Tell Chef about your allergies, medical conditions, dietary restrictions, foods you cannot eat, and personal preferences, and every recipe, food scan, and Store Mode recommendation will follow them.</p>
-                     </div>
-                   </div>
-                   <Button asChild className="mt-3 w-full sm:ml-9 sm:w-auto"><Link to="/food-preferences">Set My Food Restrictions</Link></Button>
-                 </section>
-
-                <section className="mx-auto w-full max-w-2xl px-4">
+                <section className="mx-auto mt-3 w-full max-w-2xl px-4 sm:mt-4">
                   <ExpiryAlerts className="mb-4" />
                   <div className="grid grid-cols-2 gap-3">
                     <Button asChild variant="outline" size="lg" className="h-14 font-bold">
@@ -1190,7 +1220,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
                           <Link to="/auth">Sign in</Link>
                         </Button>
                       </div>
-                      <p className="mt-3 text-[11px] text-muted-foreground">Takes 10 seconds · No credit card required</p>
+                      <p className="mt-3 text-[11px] text-muted-foreground">Takes 10 seconds</p>
                     </Card>
                   )}
                 </div>
@@ -1455,11 +1485,26 @@ function Hero({
           <ChefHat className="h-3.5 w-3.5" aria-hidden="true" /> Your Personal AI Chef
         </div>
         <h1 className="mt-1 font-display text-[1.15rem] font-semibold leading-tight tracking-tight text-ivory sm:text-[1.4rem]">
-          What can I help you make?
+          Turn your leftovers into something you'll look forward to.
         </h1>
         <p className="mt-1 text-[12.5px] font-medium leading-snug text-ivory/75 sm:text-sm">
-          Tell me what you have, what you're craving, or what you want to avoid.
+          Save money, waste less, and make delicious meals with what you already have.
         </p>
+        <Button asChild variant="royal" className="press-lift mt-3 h-12 w-full rounded-2xl px-5 text-base font-extrabold ring-2 ring-royal/55 active:scale-[0.98] sm:text-lg">
+          <Link to="/rescue" aria-label="Use My Leftovers — turn what you already have into dinner">
+            <span className="text-lg" aria-hidden>🥡</span> Use My Leftovers
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="mt-3 h-auto w-full justify-start gap-3 whitespace-normal border-primary/30 bg-primary/5 px-3 py-3 text-left hover:bg-primary/10 hover:text-foreground sm:px-4">
+          <Link to="/food-preferences" aria-label="List My Food Restrictions">
+            <ShieldCheck className="mt-0.5 shrink-0 self-start text-primary" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block font-display text-base font-bold leading-tight sm:text-lg">List My Food Restrictions</span>
+              <span className="mt-1 block text-sm font-normal leading-relaxed text-muted-foreground">Tell Chef your allergies, foods to avoid, or dietary needs. Ask what you can make that fits your restrictions.</span>
+            </span>
+            <ArrowRight className="shrink-0 text-primary" aria-hidden />
+          </Link>
+        </Button>
       </div>
     </section>
   );

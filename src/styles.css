@@ -53,12 +53,16 @@
   --color-teal: var(--teal);
   --color-gold: var(--gold);
   --color-royal: var(--royal);
+  --color-royal-foreground: var(--royal-foreground);
   --color-royal-deep: var(--royal-deep);
 }
 
 
 :root {
   --radius: 0.5rem;
+  --app-nav-height: 4.25rem;
+  --app-safe-top: env(safe-area-inset-top, 0px);
+  --app-nav-offset: calc(var(--app-safe-top) + var(--app-nav-height));
 
   /* Soft warm charcoal canvas, warm ivory ink */
   --background: oklch(0.185 0.013 145);
@@ -105,6 +109,7 @@
   --gold: oklch(0.85 0.135 82);
   /* Rich deep blue — primary call-to-action colour */
   --royal: oklch(0.52 0.175 262);
+  --royal-foreground: oklch(1 0 0);
   --royal-deep: oklch(0.42 0.155 264);
 }
 
@@ -417,6 +422,36 @@
 /* Mobile readability: larger, higher-contrast type so the app is easy to
  * glance at instead of feeling like reading a book. */
 @media (max-width: 639px) {
+  :root {
+    --app-nav-height: 52px;
+  }
+
+  /* The opening is fixed, so it must share the normal page's reserved strip. */
+  [data-fridge-intro] {
+    top: var(--app-nav-offset);
+  }
+  [data-intro-header] {
+    top: 6px;
+  }
+  [data-intro-header] .intro-emblem {
+    width: 96px !important;
+    height: 96px !important;
+  }
+  [data-intro-header] .intro-brand-copy {
+    padding-right: 0;
+  }
+  [data-intro-header] h1 {
+    font-size: 20px !important;
+  }
+  [data-intro-header] .intro-brand-copy > div {
+    font-size: 11px !important;
+    letter-spacing: 0;
+  }
+  [data-intro-header] .intro-brand-copy > p {
+    font-size: 13px !important;
+    letter-spacing: 0;
+  }
+
   html {
     font-size: 19px;
   }
@@ -432,4 +467,13 @@
   .font-light, .font-thin, .font-extralight { font-weight: 500 !important; }
 }
 
+@media (max-width: 359px) {
+  [data-intro-header] .intro-emblem {
+    width: 80px !important;
+    height: 80px !important;
+  }
+  [data-intro-header] h1 {
+    font-size: 18px !important;
+  }
+}
 

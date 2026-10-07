@@ -3,8 +3,8 @@ import { Mail, MessageCircle, BookOpen, ShieldQuestion } from "lucide-react";
 import { SiteNav } from "@/components/SiteNav";
 import { Card } from "@/components/ui/card";
 
-const UPDATED = "June 13, 2026";
-const SUPPORT_EMAIL = "support@thefridgeandcupboard.com";
+const UPDATED = "October 5, 2026";
+const SUPPORT_EMAIL = "justinbanta1111@gmail.com";
 
 export const Route = createFileRoute("/support")({
   head: () => ({
@@ -21,6 +21,8 @@ export const Route = createFileRoute("/support")({
         content: "Reach our support team for account, billing, or scanning help.",
       },
       { property: "og:url", content: "https://thefridgeandcupboard.com/support" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "canonical", href: "https://thefridgeandcupboard.com/support" }],
   }),

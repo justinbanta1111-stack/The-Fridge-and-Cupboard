@@ -30,10 +30,21 @@ export async function startNativeOAuth(provider: "google" | "apple"): Promise<vo
   const url = `${REMOTE_API_ORIGIN}/auth?native=1&provider=${provider}`;
   try {
     const { Browser } = await import("@capacitor/browser");
-    await Browser.open({ url, presentationStyle: "popover" });
+    await Browser.open({ url, presentationStyle: "fullscreen" });
   } catch {
     window.open(url, "_blank");
   }
+}
+
+/** Website side: the app link that carries the finished session back. */
+export async function nativeReturnUrl(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  const session = data.session;
+  if (!session?.access_token || !session.refresh_token) return null;
+  return (
+    `${NATIVE_AUTH_CALLBACK}#access_token=${encodeURIComponent(session.access_token)}` +
+    `&refresh_token=${encodeURIComponent(session.refresh_token)}`
+  );
 }
 
 /**
@@ -81,16 +92,25 @@ export function registerNativeAuthListener(): () => void {
       const handle = await App.addListener("appUrlOpen", async ({ url }) => {
         const tokens = tokensFromUrl(url ?? "");
         if (!tokens) return;
+        let failed = false;
         try {
-          await supabase.auth.setSession(tokens);
+          const { error } = await supabase.auth.setSession(tokens);
+          failed = Boolean(error);
         } catch {
-          /* surfaced by the sign-in screen */
+          failed = true;
         }
         try {
           const { Browser } = await import("@capacitor/browser");
           await Browser.close();
         } catch {
           /* the sheet may already be gone */
+        }
+        if (failed) {
+          try {
+            const { toast } = await import("sonner");
+            toast.error("Sign-in didn't finish. Please try again, or sign in with email.");
+          } catch {}
+          return;
         }
         try {
           sessionStorage.setItem("tfc.voice.resume-after-auth.v1", "1");

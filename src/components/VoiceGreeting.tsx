@@ -67,7 +67,7 @@ import bundledGreetingAudioUrl from "@/assets/chef-welcome.mp3?url";
  *   Mobile:  first user tap  →  unlock audio (sync)  →  welcome  →  mic prompt  →  loop
  *   Desktop: mount            →  request mic         →  welcome  →  loop
  */
-const GREETING_TEXT = "Welcome to The Fridge & Cupboard.";
+const GREETING_TEXT = "Welcome to the Fridge and Cupboard.";
 
 /**
  * Said instead of the welcome line whenever the voice loop starts again later
@@ -1721,6 +1721,16 @@ export function VoiceGreeting() {
     };
     window.addEventListener("tfc:open-chef-voice", onCompanionOpen as EventListener);
 
+    // Lines Chef speaks outside this loop (e.g. photo results) are added to
+    // the conversation memory so follow-up answers keep the photo context.
+    const onChefSaid = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: string }>).detail?.text?.trim();
+      if (!text) return;
+      historyRef.current.push({ role: "assistant", text } as Turn);
+      saveHistory(historyRef.current);
+    };
+    window.addEventListener("tfc:chef-said", onChefSaid as EventListener);
+
     const onVoiceOwnerChange = () => {
       if (getVoiceSessionOwner() !== "global") {
         finishActiveListenRef.current?.();
@@ -1815,6 +1825,7 @@ export function VoiceGreeting() {
       window.removeEventListener("keydown", silentRecover, { capture: true } as any);
       window.removeEventListener(FRIDGE_INTRO_VOICE_TAP_EVENT, onTap);
       window.removeEventListener("tfc:open-chef-voice", onCompanionOpen as EventListener);
+      window.removeEventListener("tfc:chef-said", onChefSaid as EventListener);
       window.removeEventListener(VOICE_SESSION_EVENT, onVoiceOwnerChange);
       try {
         recognizerRef.current?.stop();

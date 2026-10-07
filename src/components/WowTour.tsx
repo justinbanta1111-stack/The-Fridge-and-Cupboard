@@ -278,12 +278,12 @@ function WowTourDialog({ open, onClose }: { open: boolean; onClose: () => void }
           {isLast && (
             <div className="mt-4 rounded-2xl border border-emerald-300/40 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 dark:from-emerald-500/10 dark:to-teal-500/5">
               <div className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
-                Free to start — no card required
+                Try every feature free for 3 days
               </div>
               <ul className="mt-2 space-y-1 text-xs text-emerald-900/80 dark:text-emerald-200/80">
                 <li className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5" /> 3-day free trial</li>
-                <li className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5" /> No credit card to explore</li>
-                <li className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5" /> Upgrade only when you're ready</li>
+                <li className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5" /> Card required — billed after 3 days</li>
+                <li className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5" /> Cancel anytime before day 4, no charge</li>
               </ul>
             </div>
           )}

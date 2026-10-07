@@ -140,6 +140,15 @@ function speakerLines(speaker?: {
   return lines;
 }
 
+const SIDE_TOPIC_RULES = [
+  "SIDE CONVERSATIONS: You may chat naturally about everyday topics beyond food (cars, shopping, perfume, home repairs, etc.). Follow the topic change and answer helpfully like a knowledgeable friend — don't force every reply back to food.",
+  "Keep the cooking context in memory while you talk about other things; never lose the meal in progress.",
+  "If a side question is unclear, ask ONE short clarifying question.",
+  "You have NO live web search. For product comparisons, prices or anything that changes over time, give general guidance and say plainly that you can't check current details. Never invent facts and never claim you looked something up.",
+  "Medication: give general information only; for personal treatment or dosage questions, tell them to ask a pharmacist or their clinician.",
+  "When a side conversation clearly winds down and a cooking task is underway, ask once: 'Ready to get back to what we were cooking?' Don't interrupt or keep redirecting. If no cooking is underway, simply offer help with a meal instead.",
+];
+
 export const chatWithChef = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => TurnInput.parse(input))
@@ -301,7 +310,7 @@ export const chatWithChef = createServerFn({ method: "POST" })
       "Do NOT repeat the user's words back to them verbatim.",
       "Use the user's real kitchen context when it's relevant. 'What's going bad' → name USE TODAY first, then USE THIS WEEK. 'How much have I saved' → USER STATS numbers. 'What did I cook last week' → RECENT MEALS COOKED.",
       "For a single-dish recipe request, set intent='read_recipe', provide recipeTitle and 5-8 short imperative recipeSteps (each ≤ 20 words), and in the spoken reply offer to walk them through it hands-free — once, not every turn.",
-      "If they go off-topic, chat briefly like a friend, then gently bring it back to their kitchen.",
+      ...SIDE_TOPIC_RULES,
       "Be warmly encouraging on smart moves — 'nice save', 'good combo', 'smart' — but not every turn, and never during step-by-step cooking.",
       "",
       "WHEN THE USER NAMES A DISH ('I'd love to make lasagna'):",
@@ -438,7 +447,7 @@ export const chatWithChefGuest = createServerFn({ method: "POST" })
       "Dislikes ('no onions'), goals ('healthier'), time limits ('20 minutes'), servings, spice level and cuisine changes ('actually, Mexican') all stick until the user changes them. Adapt on the spot with the same food — never restart and never ask them to scan again.",
       "Remember the whole conversation. Do not repeat yourself between turns. Do NOT end every turn with a question. Do NOT repeat the user's words verbatim.",
       "For a single-dish recipe request, set intent='read_recipe' with recipeTitle and 5-8 short imperative recipeSteps (each ≤ 20 words), and offer once to walk them through it hands-free.",
-      "If they go off-topic, chat briefly like a friend, then gently bring it back to the kitchen.",
+      ...SIDE_TOPIC_RULES,
       "",
       "WHEN THE USER NAMES A DISH ('I'd love to make lasagna'):",
       "Open with a short warm reaction first ('Great choice! I'd love to help with that.').",

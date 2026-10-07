@@ -72,6 +72,23 @@ async function resolveOrCreateCustomer(
   return created.id;
 }
 
+/**
+ * Server-side trial eligibility: a customer gets the 3-day trial only if
+ * Stripe has never seen a subscription for them. Also blocks a second
+ * subscription while one is already live. Browser state is never trusted.
+ */
+async function trialPolicy(
+  stripe: ReturnType<typeof createStripeClient>,
+  customerId: string,
+): Promise<{ blocked: boolean; trialDays?: number }> {
+  const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
+  if (subs.data.some((s) => ["active", "trialing", "past_due"].includes(s.status))) {
+    return { blocked: true };
+  }
+  const hadAny = subs.data.some((s) => s.status !== "incomplete_expired");
+  return { blocked: false, trialDays: hadAny ? undefined : 3 };
+}
+
 export const createCheckoutSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: {
@@ -103,6 +120,11 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         userId,
       });
 
+      const policy = isRecurring ? await trialPolicy(stripe, customerId) : { blocked: false };
+      if (policy.blocked) {
+        return { error: "You already have an active plan. Manage it from your Account page." };
+      }
+
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: data.quantity || 1 }],
         mode: isRecurring ? "subscription" : "payment",
@@ -112,9 +134,12 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         managed_payments: { enabled: true },
         metadata: { userId },
         ...(isRecurring && {
+          // A payment method is always collected, even for the free trial;
+          // the paid plan starts automatically when the trial ends.
+          payment_method_collection: "always",
           subscription_data: {
             metadata: { userId },
-            trial_period_days: 3,
+            ...(policy.trialDays && { trial_period_days: policy.trialDays }),
           },
         }),
       } as any);
@@ -158,6 +183,11 @@ export const createHostedCheckoutSession = createServerFn({ method: "POST" })
         typeof context.claims?.email === "string" ? (context.claims.email as string) : undefined;
       const customerId = await resolveOrCreateCustomer(stripe, { email: customerEmail, userId });
 
+      const policy = isRecurring ? await trialPolicy(stripe, customerId) : { blocked: false };
+      if (policy.blocked) {
+        return { error: "You already have an active plan. Manage it from your Account page." };
+      }
+
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: data.quantity || 1 }],
         mode: isRecurring ? "subscription" : "payment",
@@ -168,9 +198,12 @@ export const createHostedCheckoutSession = createServerFn({ method: "POST" })
         managed_payments: { enabled: true },
         metadata: { userId },
         ...(isRecurring && {
+          // A payment method is always collected, even for the free trial;
+          // the paid plan starts automatically when the trial ends.
+          payment_method_collection: "always",
           subscription_data: {
             metadata: { userId },
-            trial_period_days: 3,
+            ...(policy.trialDays && { trial_period_days: policy.trialDays }),
           },
         }),
       } as any);
@@ -210,82 +243,6 @@ export const createPortalSession = createServerFn({ method: "POST" })
         ...(data.returnUrl && { return_url: data.returnUrl }),
       });
       return { url: portal.url };
-    } catch (error) {
-      return { error: getStripeErrorMessage(error) };
-    }
-  });
-
-type StartTrialResult =
-  | { status: "started" | "already_active"; subscriptionId?: string }
-  | { error: string };
-
-/**
- * Start a 3-day free trial WITHOUT collecting a card.
- * Creates a Stripe subscription with trial_period_days=3 and
- * trial_settings.end_behavior.missing_payment_method=cancel so the
- * subscription auto-cancels at trial end if the user hasn't added a card.
- */
-export const startFreeTrial = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((data: { priceId?: string; environment: StripeEnv }) => data)
-  .handler(async ({ data, context }): Promise<StartTrialResult> => {
-    const { supabase, userId } = context;
-    const priceLookupKey = data.priceId || "premium_monthly";
-    if (!/^[a-zA-Z0-9_-]+$/.test(priceLookupKey)) {
-      return { error: "Invalid priceId" };
-    }
-
-    try {
-      // Block duplicate trials / active subscriptions.
-      const { data: existing } = await supabase
-        .from("subscriptions")
-        .select("stripe_subscription_id, status, current_period_end")
-        .eq("user_id", userId)
-        .eq("environment", data.environment)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (
-        existing &&
-        ["trialing", "active", "past_due"].includes(existing.status as string)
-      ) {
-        return {
-          status: "already_active",
-          subscriptionId: existing.stripe_subscription_id as string | undefined,
-        };
-      }
-
-      const stripe = createStripeClient(data.environment);
-
-      const prices = await stripe.prices.list({ lookup_keys: [priceLookupKey] });
-      if (!prices.data.length) return { error: "Price not found" };
-      const stripePrice = prices.data[0];
-
-      const customerEmail =
-        typeof context.claims?.email === "string"
-          ? (context.claims.email as string)
-          : undefined;
-      const customerId = await resolveOrCreateCustomer(stripe, {
-        email: customerEmail,
-        userId,
-      });
-
-      const subscription = await stripe.subscriptions.create({
-        customer: customerId,
-        items: [{ price: stripePrice.id }],
-        trial_period_days: 3,
-        // No card required up front. If the user doesn't add a card before
-        // trial end, Stripe cancels the subscription.
-        payment_settings: {
-          save_default_payment_method: "on_subscription",
-        },
-        trial_settings: {
-          end_behavior: { missing_payment_method: "cancel" },
-        },
-        metadata: { userId, source: "free_trial_no_card" },
-      } as any);
-
-      return { status: "started", subscriptionId: subscription.id };
     } catch (error) {
       return { error: getStripeErrorMessage(error) };
     }

@@ -22,7 +22,7 @@ export const Route = createFileRoute("/food-preferences")({
     { name: "twitter:card", content: "summary_large_image" },
   ] }),
   component: FoodPreferencesPage,
-  errorComponent: ({ error, reset }) => <main className="p-8 text-center"><p className="mb-4 text-destructive">{error.message}</p><Button onClick={reset}>Try again</Button></main>,
+  errorComponent: ({ error, reset }) => <main className="p-8 text-center"><p className="mb-4 text-destructive">{error instanceof Error ? error.message : String(error)}</p><Button onClick={reset}>Try again</Button></main>,
   notFoundComponent: () => <main className="p-8">Not found</main>,
 });
 

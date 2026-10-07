@@ -10,6 +10,8 @@ export type SubscriptionTier = "free" | "standard" | "premium";
 export type SubscriptionState = {
   loading: boolean;
   userId: string | null;
+  /** True for temporary guest sessions — these are NOT signed-up customers. */
+  isAnonymous: boolean;
   isActive: boolean;
   isPremium: boolean;
   isStandard: boolean;
@@ -39,14 +41,16 @@ function classify(priceId: string | null | undefined): SubscriptionTier {
 function isStatusActive(status: string | null, periodEnd: string | null): boolean {
   if (!status) return false;
   const future = !periodEnd || new Date(periodEnd).getTime() > Date.now();
-  if (["active", "trialing", "past_due"].includes(status) && future) return true;
-  if (status === "canceled" && periodEnd && new Date(periodEnd).getTime() > Date.now()) return true;
-  return false;
+  // Only a Stripe-confirmed live trial or paid plan grants access. Failed
+  // payments (past_due/unpaid/incomplete) and canceled plans do not. A plan
+  // cancelled "at period end" stays "active" in Stripe until it ends.
+  return (status === "active" || status === "trialing") && future;
 }
 
 export function useSubscription(): SubscriptionState {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [row, setRow] = useState<{
     price_id: string | null;
     status: string | null;
@@ -88,12 +92,14 @@ export function useSubscription(): SubscriptionState {
       if (!mounted) return;
       const uid = data.user?.id ?? null;
       setUserId(uid);
+      setIsAnonymous(Boolean(data.user?.is_anonymous));
       load(uid);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED" && event !== "INITIAL_SESSION") return;
       const uid = session?.user?.id ?? null;
       setUserId(uid);
+      setIsAnonymous(Boolean(session?.user?.is_anonymous));
       // NEVER call other supabase methods synchronously inside this callback —
       // it holds the auth lock, and a query here deadlocks getSession() for
       // every other caller (server-fn bearer attacher, voice pipeline, etc.).
@@ -157,6 +163,7 @@ export function useSubscription(): SubscriptionState {
   return {
     loading,
     userId,
+    isAnonymous,
     isActive: active,
     isPremium: active && tier === "premium",
     isStandard: active && (tier === "standard" || tier === "premium"),

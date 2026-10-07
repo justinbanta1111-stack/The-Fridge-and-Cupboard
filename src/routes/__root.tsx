@@ -55,7 +55,8 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error: rawError, reset }: { error: unknown; reset: () => void }) {
+  const error = rawError instanceof Error ? rawError : new Error(String(rawError));
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -192,6 +193,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
+        <NavControls />
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <RevealObserver />
@@ -200,7 +202,6 @@ function RootComponent() {
         <VoiceStatusMeter />
         <VoiceMuteButton />
         <VoiceStateIndicator />
-        <NavControls />
         <div
           className="pointer-events-none fixed right-3 z-40"
           style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}

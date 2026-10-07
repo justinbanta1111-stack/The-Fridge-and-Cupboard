@@ -87,13 +87,13 @@ export function SiteNav() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
-      <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_3rem] items-center gap-x-3 gap-y-2 px-3 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-6 sm:pb-4 lg:flex lg:flex-nowrap lg:gap-4 lg:py-4">
+    <header className="sticky top-[var(--app-nav-offset)] z-40 border-b border-border/60 bg-background/85 backdrop-blur">
+      <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_3rem] items-center gap-x-3 gap-y-2 px-3 pb-3 pt-2 sm:px-6 sm:pb-4 sm:pt-[max(env(safe-area-inset-top),0.75rem)] lg:flex lg:flex-nowrap lg:gap-4 lg:py-4">
         {/* Logo + brand title/tagline */}
-        <Link to="/" className="flex min-w-0 items-center gap-2.5 lg:flex-1 lg:gap-3" aria-label="The Fridge and Cupboard — Home">
+        <Link to="/" className="col-span-2 flex min-w-0 items-center gap-2.5 sm:col-span-1 lg:flex-1 lg:gap-3" aria-label="The Fridge and Cupboard — Home">
           <BrandMark className="block h-11 w-11 shrink-0 sm:h-12 sm:w-12 lg:h-14 lg:w-14" />
           <span className="min-w-0">
-            <span className="block truncate font-display text-lg font-black leading-tight text-foreground sm:text-xl lg:text-2xl">
+            <span className="block whitespace-normal font-display text-lg font-black leading-tight text-foreground sm:truncate sm:text-xl lg:text-2xl">
               The Fridge <span className="text-muted-foreground">&amp;</span> Cupboard
             </span>
             <span className="mt-0.5 block truncate text-[10px] font-semibold leading-snug text-muted-foreground sm:text-xs lg:text-sm">
@@ -102,7 +102,7 @@ export function SiteNav() {
           </span>
         </Link>
 
-        <span className="h-11 w-12 lg:hidden" aria-hidden="true" />
+        <span className="hidden h-11 w-12 sm:block lg:hidden" aria-hidden="true" />
 
         {/* Navigation and account controls share a dedicated row on phones and tablets. */}
         <div className="col-span-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] items-center gap-1.5 sm:flex sm:justify-end sm:gap-2 lg:col-auto lg:ml-auto">

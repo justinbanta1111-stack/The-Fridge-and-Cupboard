@@ -7,6 +7,7 @@ import {
   VOICE_PREF_EVENT,
 } from "@/lib/voice-assistant";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 type Props = { className?: string };
 
@@ -33,7 +34,9 @@ export function VoiceMuteButton({ className }: Props) {
   };
 
   return (
-    <button
+    <Button
+      variant="outline"
+      size="icon"
       type="button"
       data-voice-mute
       onClick={toggleVoice}
@@ -41,12 +44,11 @@ export function VoiceMuteButton({ className }: Props) {
       aria-label={voiceOn ? "Mute assistant voice" : "Unmute assistant voice"}
       title={voiceOn ? "Mute assistant voice" : "Unmute assistant voice"}
       className={cn(
-        "fixed right-3 z-[320] inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md transition hover:bg-black/60 active:scale-95",
+        "fixed right-[max(env(safe-area-inset-right,0px),12px)] top-[calc(var(--app-safe-top)+4px)] z-[320] h-[44px] w-[44px] rounded-full text-foreground sm:top-[calc(var(--app-safe-top)+0.75rem)] sm:h-11 sm:w-11",
         className,
       )}
-      style={{ top: "calc(env(safe-area-inset-top, 0px) + 0.75rem)" }}
     >
       {voiceOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-    </button>
+    </Button>
   );
 }

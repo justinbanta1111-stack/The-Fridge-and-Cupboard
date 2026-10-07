@@ -157,7 +157,7 @@ export function SavingsDashboard() {
               Sign in to track your savings <ArrowRight className="h-4 w-4" />
             </Link>
             <span className="text-xs text-[oklch(0.4_0.05_45)]">
-              Free — no card, no spam.
+              No spam, ever.
             </span>
           </div>
         )}

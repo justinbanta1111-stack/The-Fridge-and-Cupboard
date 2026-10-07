@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Crown, Sparkles, LogIn, Gift } from "lucide-react";
 import { toast } from "sonner";
+import { isNativeApp } from "@/lib/native-runtime";
 import { supabase } from "@/integrations/supabase/client";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 import { useCanSell } from "@/hooks/use-store-purchases";
@@ -22,13 +23,13 @@ export function HeroSubscribeCTAs() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
+      if (data.user && !data.user.is_anonymous) {
         setUser({ id: data.user.id, email: data.user.email ?? undefined });
       }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(
-        session?.user
+        session?.user && !session.user.is_anonymous
           ? { id: session.user.id, email: session.user.email ?? undefined }
           : null,
       );
@@ -40,6 +41,13 @@ export function HeroSubscribeCTAs() {
 
   const startCheckout = (priceId: CheckoutPriceId) => {
     closeInstallModal();
+    // Installed app: always open Apple's/Google's purchase sheet directly.
+    // Store purchases don't need a website account or Stripe, and App
+    // Review must reach the sheet without signing in.
+    if (isNativeApp()) {
+      openCheckout({ priceId });
+      return;
+    }
     if (!stripeReady) {
       toast.message("Checkout isn't live yet — please try again shortly.");
       return;
@@ -147,7 +155,7 @@ export function HeroSubscribeCTAs() {
         className="text-center text-xs text-white/90 sm:text-sm"
         style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
       >
-        Free trial requires no credit card. Cancels automatically if you don't add one.
+        3-day free trial with a card on file. Your plan starts automatically after 3 days unless you cancel.
       </p>
       {checkoutElement}
     </div>

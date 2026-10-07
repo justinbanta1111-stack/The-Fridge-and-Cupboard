@@ -199,13 +199,13 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
               }}
             >
               <div
-                className="sm:!h-[152px] sm:!w-[152px]"
+                className="intro-emblem sm:!h-[152px] sm:!w-[152px]"
                 style={{ height: "clamp(112px, 31vw, 140px)", width: "clamp(112px, 31vw, 140px)" }}
               >
                 <BrandMark className="block h-full w-full rounded-full bg-white object-contain ring-2 ring-[#0047AB]/70" />
               </div>
             </div>
-            <div className="min-w-0 flex-1 pr-8 text-left sm:pr-10">
+            <div className="intro-brand-copy min-w-0 flex-1 pr-8 text-left sm:pr-10">
               <div
                 className="font-display font-extrabold tracking-[0.14em] sm:tracking-[0.2em] text-[#FFD24A]"
                 style={{ fontSize: "clamp(0.65rem, 2.6vw, 0.85rem)", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}

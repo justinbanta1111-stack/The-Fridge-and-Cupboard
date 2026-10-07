@@ -14,6 +14,7 @@ import { isBundledOrigin, REMOTE_API_ORIGIN } from "@/lib/native-api-origin";
 import {
   deliverSessionToNativeApp,
   isNativeAuthHandoff,
+  nativeReturnUrl,
   startNativeOAuth,
 } from "@/lib/native-auth";
 import { notifyNewSignup } from "@/lib/signup-alert.functions";
@@ -59,6 +60,8 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  // Set when the website finished sign-in for the iPhone/Android app.
+  const [handoffUrl, setHandoffUrl] = useState<string | null>(null);
 
   function redirectTarget() {
     if (typeof window === "undefined") return "/";
@@ -84,16 +87,48 @@ function AuthPage() {
     const finish = async (user: { is_anonymous?: boolean | null }) => {
       primeVoiceForSignedInPage();
       await alertOwnerOnce(user);
-      if (await deliverSessionToNativeApp()) return;
+      if (isNativeAuthHandoff()) {
+        const url = await nativeReturnUrl();
+        if (url) {
+          setHandoffUrl(url);
+          await deliverSessionToNativeApp();
+          return;
+        }
+      }
       window.location.replace(redirectTarget());
     };
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) void finish(data.session.user);
+      // Guest (anonymous) sessions must still see the sign-up form.
+      if (data.session?.user && !data.session.user.is_anonymous) void finish(data.session.user);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) void finish(session.user);
+      if (event === "SIGNED_IN" && session?.user && !session.user.is_anonymous) void finish(session.user);
     });
     return () => listener.subscription.unsubscribe();
+  }, []);
+
+  // App hand-off: show provider errors clearly, otherwise start the chosen
+  // provider right away so the sign-in sheet is never an empty stop.
+  useEffect(() => {
+    if (!isNativeAuthHandoff()) return;
+    const params = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const err = params.get("error_description") || hash.get("error_description") || params.get("error") || hash.get("error");
+    if (err) {
+      toast.error("Sign-in didn't finish. Please try again, or use email below.");
+      return;
+    }
+    const provider = params.get("provider");
+    if (provider !== "google" && provider !== "apple") return;
+    const key = `tfc.native-oauth-started.${provider}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {}
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!data.session?.user || data.session.user.is_anonymous) void signInWith(provider);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signInWith(provider: "google" | "apple") {
@@ -110,6 +145,9 @@ function AuthPage() {
         redirect_uri: `${webOrigin()}/auth?${nativeFlag}redirect=${encodeURIComponent(redirectTarget())}`,
       });
       if (result.error) {
+        try {
+          sessionStorage.removeItem(`tfc.native-oauth-started.${provider}`);
+        } catch {}
         toast.error(
           provider === "google"
             ? "Google sign-in failed. Please try again."
@@ -231,6 +269,20 @@ function AuthPage() {
   );
 
 
+  if (handoffUrl) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-background px-6 text-center">
+        <div className="max-w-sm space-y-4">
+          <h1 className="font-display text-2xl font-bold">You're signed in</h1>
+          <p className="text-muted-foreground">Tap below to go back to The Fridge &amp; Cupboard app.</p>
+          <Button asChild size="lg" className="w-full">
+            <a href={handoffUrl}>Return to the app</a>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
 
     <div className="relative min-h-dvh bg-gradient-to-b from-[#FFF8E7] via-background to-background px-4 py-10">
@@ -248,7 +300,7 @@ function AuthPage() {
           <div className="mb-6 text-center">
             {mode === "signup" && (
               <div className="mx-auto mb-3 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] uppercase tracking-widest text-primary">
-                Free 3-day trial · No credit card
+                Free 3-day trial · Card required
               </div>
             )}
             <h1 className="font-display text-2xl tracking-tight sm:text-3xl">

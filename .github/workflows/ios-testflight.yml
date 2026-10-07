@@ -246,7 +246,9 @@ jobs:
           if [ -n "${{ github.event.inputs.build_number }}" ]; then
             BN="${{ github.event.inputs.build_number }}"
           else
-            BN="${{ github.run_number }}"
+            # Apple already holds build 361 for version 1.0; run numbers (~112)
+            # are lower, so offset them to always stay above every past upload.
+            BN=$(( ${{ github.run_number }} + 400 ))
           fi
           echo "build_number=$BN" >> "$GITHUB_OUTPUT"
 

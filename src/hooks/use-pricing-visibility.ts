@@ -12,15 +12,19 @@ import { getFreeScansUsed } from "@/lib/guest";
  *   full pricing options once they've used their free preview scan.
  */
 export function usePricingVisibility() {
-  const { loading, userId, isActive } = useSubscription();
+  const { loading, userId, isAnonymous, isActive } = useSubscription();
   const [usedFreePreview, setUsedFreePreview] = useState(false);
 
   useEffect(() => {
     setUsedFreePreview(getFreeScansUsed("fridge") + getFreeScansUsed("cupboard") > 0);
   }, [userId]);
 
-  const signedIn = Boolean(userId);
+  // Guest (anonymous) sessions are not signed-up customers.
+  const signedIn = Boolean(userId) && !isAnonymous;
   const ready = !loading;
+  // Offers are hidden ONLY for a real account with a Stripe-confirmed live
+  // trial or paid plan. Nothing is remembered in the browser.
+  const covered = signedIn && isActive;
 
   return {
     ready,
@@ -28,9 +32,9 @@ export function usePricingVisibility() {
     isSubscriber: isActive,
     usedFreePreview,
     /** Any sign-in / sign-up / trial invitation. Visitors only. */
-    showSignupBlocks: ready && !signedIn,
+    showSignupBlocks: ready && !covered,
     /** The three full pricing options. Visitors, after their free preview. */
-    showFullPricing: ready && !signedIn && usedFreePreview,
+    showFullPricing: ready && !covered && (signedIn || usedFreePreview),
     /** Small upgrade entry for signed-in members without a paid plan. */
     showUpgradeChip: ready && signedIn && !isActive,
   };

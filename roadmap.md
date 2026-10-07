@@ -1,5 +1,12 @@
 # Upgrade roadmap (Sept 2026)
 
+## Mobile welcome controls
+- [x] Compact Home, Back, and sound controls; verified complete opening logo/title at 320px, 375px, and 402px with simulated iPhone safe area; animation completes with no browser errors. Allow the main page brand title to wrap rather than truncate on phones.
+
+## Consistent Home and Back navigation
+- [x] Add shared, safe-area-aware Home and Back controls on every page with reserved content space.
+- [x] Verify previous-page navigation, direct-entry Home fallback, and phone/tablet/desktop placement (browser checks at iPhone, Android, iPad and desktop sizes; physical installed-device testing still requires devices).
+
 ## Done this pass
 - [x] Store Mode home button + `/store-mode` hub (scan item, help me choose, bulk, list, stores)
 - [x] Bulk / Costco shopping planner (`/bulk-shopping`) with add-to-list

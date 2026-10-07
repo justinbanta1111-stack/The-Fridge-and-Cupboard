@@ -41,6 +41,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isNativeApp } from "@/lib/native-runtime";
 
 export const Route = createFileRoute("/pro")({
   head: () => ({
@@ -127,10 +128,10 @@ function ProPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) setUser({ id: data.user.id, email: data.user.email ?? undefined });
+      if (data.user && !data.user.is_anonymous) setUser({ id: data.user.id, email: data.user.email ?? undefined });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ? { id: session.user.id, email: session.user.email ?? undefined } : null);
+      setUser(session?.user && !session.user.is_anonymous ? { id: session.user.id, email: session.user.email ?? undefined } : null);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -143,6 +144,13 @@ function ProPage() {
 
   const startCheckout = (priceId: CheckoutPriceId) => {
     closeInstallModal();
+    // Installed app: always open Apple's/Google's purchase sheet directly.
+    // Store purchases don't need a website account or Stripe, and App
+    // Review must reach the sheet without signing in.
+    if (isNativeApp()) {
+      openCheckout({ priceId });
+      return;
+    }
     if (!stripeReady) {
       toast.message("Checkout isn't live yet — sign up to join the waitlist.");
       return;
@@ -220,7 +228,7 @@ function ProPage() {
               3-day free trial · Credit card required
             </div>
             <p className="text-center text-sm text-muted-foreground">
-              Full access to every feature for 3 days. Cancel anytime before day 4 and you won't be charged.
+              Enter a card to start. Full access for 3 days, then your plan renews monthly automatically. Cancel before day 4 and you won't be charged.
             </p>
             <Button
               size="lg"

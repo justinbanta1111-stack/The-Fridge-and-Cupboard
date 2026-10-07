@@ -13,7 +13,7 @@ export const Route = createFileRoute("/kitchen-basics")({
   component: KitchenBasicsPage,
   errorComponent: ({ error, reset }) => (
     <div className="p-8 text-center">
-      <p className="text-destructive">{error.message}</p>
+      <p className="text-destructive">{error instanceof Error ? error.message : String(error)}</p>
       <button onClick={reset} className="mt-4 underline">Try again</button>
     </div>
   ),

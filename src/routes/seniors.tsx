@@ -52,7 +52,7 @@ export const Route = createFileRoute("/seniors")({
   errorComponent: ({ error }) => (
     <div className="mx-auto max-w-2xl p-6 text-center">
       <p className="font-display text-xl">Something went wrong.</p>
-      <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{error instanceof Error ? error.message : String(error)}</p>
     </div>
   ),
   notFoundComponent: () => <div className="p-6 text-center">Not found.</div>,

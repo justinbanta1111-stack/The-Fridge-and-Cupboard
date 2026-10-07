@@ -5,7 +5,8 @@ import * as React from "react";
 import { canSelfHeal, selfHealAndReload } from "./lib/launch-recovery";
 import { isNativeApp } from "./lib/native-runtime";
 
-function DefaultError({ error, reset }: { error: Error; reset: () => void }) {
+function DefaultError({ error: rawError, reset }: { error: unknown; reset: () => void }) {
+  const error = rawError instanceof Error ? rawError : new Error(String(rawError));
   console.error(error);
   const router = useRouter();
   React.useEffect(() => {
