@@ -62,7 +62,12 @@ export const REVENUECAT_IOS_PUBLIC_KEY = "appl_pYJSbZdYdRRtLJJpOzJQnoylfkF";
 
 type PurchasesModule = any;
 
-let sdkPromise: Promise<PurchasesModule | null> | null = null;
+// IMPORTANT: the store plugin is a Capacitor proxy that answers to *every*
+// property, including `then`. Resolving a promise with it directly makes the
+// promise try to "await" the plugin, which never settles — the purchase
+// spinner then spins forever. Always keep it wrapped in a plain object.
+type SdkBox = { Purchases: PurchasesModule };
+let sdkPromise: Promise<SdkBox | null> | null = null;
 
 /** Store calls can stall (no network, StoreKit not answering). Never wait forever. */
 export class StoreTimeoutError extends Error {
@@ -84,10 +89,10 @@ function logStore(step: string, detail?: unknown) {
   try { console.warn(`[native-billing] ${step}`, detail ?? ""); } catch { /* ignore */ }
 }
 
-async function loadSdk(): Promise<PurchasesModule | null> {
+async function loadSdk(): Promise<SdkBox | null> {
   if (!isNativeApp()) return null;
   if (!sdkPromise) {
-    sdkPromise = (async () => {
+    sdkPromise = (async (): Promise<SdkBox | null> => {
       try {
         // Must be a literal import so the plugin is bundled into the app.
         const mod: any = await import("@revenuecat/purchases-capacitor");
@@ -108,7 +113,7 @@ async function loadSdk(): Promise<PurchasesModule | null> {
             logStore("logIn skipped", e);
           }
         })();
-        return Purchases;
+        return { Purchases };
       } catch (e) {
         logStore("configure failed", e);
         sdkPromise = null; // allow a retry on the next tap
@@ -116,7 +121,15 @@ async function loadSdk(): Promise<PurchasesModule | null> {
       }
     })();
   }
-  return sdkPromise;
+  try {
+    const box = await withTimeout(sdkPromise, 15000, STORE_UNAVAILABLE);
+    if (!box) sdkPromise = null;
+    return box ?? null;
+  } catch (e) {
+    logStore("loadSdk timed out", e);
+    sdkPromise = null;
+    return null;
+  }
 }
 
 /** True when real store billing can actually run on this device. */
@@ -157,7 +170,7 @@ function isCancel(e: any): boolean {
 
 /** Launch the platform purchase sheet for the given subscription. */
 export async function startNativePurchase(productId: NativeProductId): Promise<NativeEntitlement> {
-  const Purchases = await loadSdk();
+  const Purchases = (await loadSdk())?.Purchases;
   if (!Purchases) throw new Error(STORE_UNAVAILABLE);
   let products: any[] = [];
   try {
@@ -194,7 +207,7 @@ export async function startNativePurchase(productId: NativeProductId): Promise<N
 
 /** Apple + Google require a visible "Restore Purchases" entry in the UI. */
 export async function restoreNativePurchases(): Promise<NativeEntitlement> {
-  const Purchases = await loadSdk();
+  const Purchases = (await loadSdk())?.Purchases;
   if (!Purchases) {
     // Not an error state for the user: nothing to restore on this device.
     if (!isNativeApp()) return INACTIVE;
@@ -211,7 +224,7 @@ export async function restoreNativePurchases(): Promise<NativeEntitlement> {
 
 /** Read the cached entitlement from the billing SDK (no purchase sheet). */
 export async function getNativeEntitlement(): Promise<NativeEntitlement> {
-  const Purchases = await loadSdk();
+  const Purchases = (await loadSdk())?.Purchases;
   if (!Purchases) return INACTIVE;
   try {
     const info = await withTimeout<any>(Purchases.getCustomerInfo(), 10000, "timeout");
