@@ -185,12 +185,35 @@ export async function startNativePurchase(productId: NativeProductId): Promise<N
     throw e instanceof StoreTimeoutError ? e : new Error(STORE_UNAVAILABLE);
   }
   logStore("getProducts", products.map((p: any) => p?.identifier));
-  const product = products.find((p: any) => p?.identifier === productId) ?? products[0];
-  if (!product) throw new Error("That subscription isn't available on this device right now.");
+  const product = products.find((p: any) => p?.identifier === productId);
+  // Fallback: the product may only be reachable through a RevenueCat offering.
+  let pkg: any = null;
+  if (!product) {
+    try {
+      const offerings = await withTimeout<any>(Purchases.getOfferings(), 15000, "offerings timeout");
+      const all: any[] = Object.values(offerings?.all ?? {});
+      for (const o of all) {
+        pkg = (o?.availablePackages ?? []).find((p: any) => p?.product?.identifier === productId);
+        if (pkg) break;
+      }
+      logStore("getOfferings", { offerings: all.length, found: Boolean(pkg) });
+    } catch (e) {
+      logStore("getOfferings failed", e);
+    }
+  }
+  if (!product && !pkg) {
+    // StoreKit returned nothing for this ID: the product is not yet approved /
+    // "Ready to Submit" with complete metadata, or the Paid Apps agreement is
+    // not active in App Store Connect. Show a code so testers can report it.
+    throw new Error(
+      `Apple didn't return the ${NATIVE_PRODUCTS[productId].name} subscription (${productId}). ` +
+        `Code: STORE_NO_PRODUCT (${products.length} returned). Nothing was charged.`,
+    );
+  }
   try {
     // Apple's sheet waits on the shopper, so allow a long window, but never forever.
     const result = await withTimeout<any>(
-      Purchases.purchaseStoreProduct({ product }),
+      product ? Purchases.purchaseStoreProduct({ product }) : Purchases.purchasePackage({ aPackage: pkg }),
       180000,
       "The purchase didn't finish. If you were charged it will appear after Restore Purchases.",
     );
@@ -201,7 +224,8 @@ export async function startNativePurchase(productId: NativeProductId): Promise<N
     logStore("purchase failed", e);
     if (isCancel(e)) throw new PurchaseCancelledError();
     if (e instanceof StoreTimeoutError) throw e;
-    throw new Error("The purchase couldn't be completed. Nothing was charged.");
+    const code = String((e as any)?.code ?? (e as any)?.readableErrorCode ?? "unknown");
+    throw new Error(`The purchase couldn't be completed. Nothing was charged. Code: ${code}`);
   }
 }
 
