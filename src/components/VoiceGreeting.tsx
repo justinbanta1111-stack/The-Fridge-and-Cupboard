@@ -61,7 +61,8 @@ import { noteInterruption } from "@/lib/interruption-politeness";
 import { isNativeApp } from "@/lib/native-runtime";
 import { hasConsent, grantConsent } from "@/lib/permissions";
 
-import bundledGreetingAudioUrl from "@/assets/chef-welcome.mp3?url";
+import greetingAsset from "@/assets/chef-welcome-relaxed.mp3.asset.json";
+const bundledGreetingAudioUrl = greetingAsset.url;
 
 /**
  * Hands-free voice runtime.

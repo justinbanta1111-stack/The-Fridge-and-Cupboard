@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { CHEF_VOICE_MODEL, CHEF_VOICE_SETTINGS } from "./chef-voice-settings";
+import { WELCOME_GREETING } from "./welcome-voice";
 
 // Chef Super J's saved ElevenLabs voice only. No browser voice and no stock
 // ElevenLabs fallback voice is used for this app.
@@ -72,10 +74,8 @@ async function resolveVoiceId(gender: "male" | "female", apiKey: string): Promis
     "Saved Chef Super J ElevenLabs voice ID is missing. Set CHEF_VOICE_ID_MALE (or CHEF_SUPER_J_VOICE_ID / ELEVENLABS_CHEF_SUPER_J_VOICE_ID) or grant the ElevenLabs key voices_read permission so the saved voice can be found.",
   );
 }
-// The multilingual model preserves the licensed Chef Super J voice while
-// producing smoother phrasing, steadier emphasis, and more natural breaths.
-// One model for every line keeps the same voice identity; turbo cut measured latency ~0.9s → ~0.2–0.7s.
-const MODEL_ID_CHEF_SUPER_J = "eleven_turbo_v2_5";
+// Keep the existing low-latency model and licensed voice identity.
+const MODEL_ID_CHEF_SUPER_J = CHEF_VOICE_MODEL;
 
 type CachedSpeech = { audio: string; mime: "audio/mpeg"; cachedAt: number };
 const speechCache = new Map<string, CachedSpeech>();
@@ -110,28 +110,17 @@ const Input = z.object({
 });
 
 function voiceSettings(personality: z.infer<typeof Input>["personality"], text: string) {
-  // Warm, assured and conversational. Slightly higher stability keeps the
-  // delivery confident and connected; restrained style keeps it mellow.
   void personality;
-  // Short standalone lines (the opening greeting, quick asides) are delivered
-  // faster by the model than long replies. Ease them down so the very first
-  // words match the calm pace used in the middle of a conversation.
-  const short = text.length <= 140;
-  void short;
-  // Same pace and tone for greetings, answers and instructions — no slowed short lines.
-  const settings = { speed: 1, stability: 0.58, style: 0.18 };
-
-  return {
-    ...settings,
-    similarity_boost: 0.9,
-    // Speaker boost gives the voice presence and body so it doesn't sound thin.
-    use_speaker_boost: true,
-  };
+  void text;
+  return CHEF_VOICE_SETTINGS;
 }
 
 // Strip markdown but KEEP natural sentence punctuation so Chef Super J
 // breathes between thoughts instead of rushing through the reply.
 function prepareForSpeech(text: string): string {
+  // A declarative stop gently encourages a falling close on "today"; it is
+  // synthesis punctuation only, not a change to the displayed greeting.
+  if (text.trim() === WELCOME_GREETING) text = text.trim().replace(/\?$/, ".");
   return text
     .replace(/[*_#`]/g, "")
     // Keep paragraph transitions audible instead of flattening every line.
@@ -174,7 +163,7 @@ export const synthesizeChefVoice = createServerFn({ method: "POST" })
       source: resolved.source,
     });
     const preparedText = prepareForSpeech(data.text);
-    const cacheKey = [MODEL_ID_CHEF_SUPER_J, resolved.voiceId, data.personality, preparedText].join("|");
+    const cacheKey = [MODEL_ID_CHEF_SUPER_J, resolved.voiceId, JSON.stringify(CHEF_VOICE_SETTINGS), preparedText].join("|");
     const cached = getCachedSpeech(cacheKey);
     if (cached) {
       console.info("VOICE_API_SUCCESS", {

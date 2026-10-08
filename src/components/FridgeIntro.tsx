@@ -290,14 +290,13 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
         </div>
       </div>
 
-      {/* Warm welcome line — quiet, no pressure */}
+      {/* Separate footer below the full-size refrigerator, never over its doors. */}
       {doorMotionStarted && (
-        <p
-          className="fc-welcome-line pointer-events-none absolute inset-x-0 bottom-[30px] z-[120] px-6 text-center font-display text-[13px] font-medium leading-snug text-stone-700 sm:text-[15px]"
-          style={{ textShadow: "0 1px 2px rgba(255,255,255,0.85)" }}
-        >
-          Welcome home. Let's see what we can create together.
-        </p>
+        <div className="fc-welcome-footer">
+          <p className="fc-welcome-line pointer-events-none px-6 text-center font-display text-[13px] font-medium leading-snug sm:text-[15px]">
+            Welcome home. Let's see what we can create together.
+          </p>
+        </div>
       )}
 
       <style>{`

@@ -419,6 +419,14 @@
   .icon-rise, .bg-drift, .press-lift { animation: none !important; transition: none !important; }
 }
 
+.fc-welcome-footer {
+  position: absolute;
+  top: calc(100% + 12px);
+  width: 100%;
+  padding: 0 0 max(24px, env(safe-area-inset-bottom, 0px));
+  color: var(--ink);
+}
+
 /* Mobile readability: larger, higher-contrast type so the app is easy to
  * glance at instead of feeling like reading a book. */
 @media (max-width: 639px) {
@@ -442,11 +450,13 @@
     bottom: calc(18px + 205px - var(--intro-fridge-top, 170px));
   }
   [data-fridge-intro] .fc-welcome-line {
-    bottom: max(8px, env(safe-area-inset-bottom, 0px));
     color: var(--ink);
     font-weight: 600;
     animation-delay: 0.3s;
     animation-duration: 0.6s;
+  }
+  [data-fridge-intro] .fc-welcome-footer {
+    top: calc(100% - 18px - 205px + var(--intro-fridge-top, 170px) + 24px);
   }
   [data-intro-header] .intro-emblem {
     width: 96px !important;

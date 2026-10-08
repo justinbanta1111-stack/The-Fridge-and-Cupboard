@@ -23,7 +23,9 @@ import nativeAuthSource from '../../../lib/native-auth.ts?raw';
 import todaysInspirationSource from '../../../components/TodaysInspiration.tsx?raw';
 import launchRecoverySource from '../../../lib/launch-recovery.ts?raw';
 import routerSource from '../../../router.tsx?raw';
-import greetingAudioUrl from '../../../assets/chef-welcome.mp3?url';
+import greetingAsset from '../../../assets/chef-welcome-relaxed.mp3.asset.json';
+import greetingAssetSource from '../../../assets/chef-welcome-relaxed.mp3.asset.json?raw';
+const greetingAudioUrl = greetingAsset.url;
 
 
 
@@ -171,6 +173,7 @@ export const Route = createFileRoute('/api/public/tf-dispatch')({
               ['src/components/TodaysInspiration.tsx', todaysInspirationSource],
               ['src/lib/launch-recovery.ts', launchRecoverySource],
               ['src/router.tsx', routerSource],
+              ['src/assets/chef-welcome-relaxed.mp3.asset.json', greetingAssetSource],
           ] as const;
 
           // The greeting sound is imported by src/routes/__root.tsx, so it must

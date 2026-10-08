@@ -28,7 +28,8 @@ import { ReferralCapture } from "@/components/ReferralCapture";
 import { RevealObserver } from "@/components/RevealObserver";
 import { setupPwaInstallDiagnostics } from "@/lib/pwa-install";
 import { LanguageProvider } from "@/lib/i18n/context";
-import bundledGreetingAudioUrl from "@/assets/chef-welcome.mp3?url";
+import greetingAsset from "@/assets/chef-welcome-relaxed.mp3.asset.json";
+const bundledGreetingAudioUrl = greetingAsset.url;
 import { canSelfHeal, selfHealAndReload } from "@/lib/launch-recovery";
 import { isNativeApp } from "@/lib/native-runtime";
 
