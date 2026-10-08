@@ -23,7 +23,9 @@ import {
   waitForVoiceAudioReady,
   getVoiceRate,
   getVoicePauseMs,
+  isVoicePlaybackClaimed,
 } from "@/lib/voice-assistant";
+import { WELCOME_GREETING, canPrepareWelcomeAudio } from "@/lib/welcome-voice";
 
 import { synthesizeChefVoice } from "@/lib/tts.functions";
 
@@ -57,7 +59,7 @@ import { resetMicActivity } from "@/lib/mic-activity";
 import { getVoiceSessionOwner, VOICE_SESSION_EVENT } from "@/lib/voice-session";
 import { noteInterruption } from "@/lib/interruption-politeness";
 import { isNativeApp } from "@/lib/native-runtime";
-import { hasConsent } from "@/lib/permissions";
+import { hasConsent, grantConsent } from "@/lib/permissions";
 
 import bundledGreetingAudioUrl from "@/assets/chef-welcome.mp3?url";
 
@@ -67,7 +69,7 @@ import bundledGreetingAudioUrl from "@/assets/chef-welcome.mp3?url";
  *   Mobile:  first user tap  →  unlock audio (sync)  →  welcome  →  mic prompt  →  loop
  *   Desktop: mount            →  request mic         →  welcome  →  loop
  */
-const GREETING_TEXT = "Welcome to the Fridge and Cupboard.";
+const GREETING_TEXT = WELCOME_GREETING;
 
 /**
  * Said instead of the welcome line whenever the voice loop starts again later
@@ -86,7 +88,7 @@ function pickReturnLine(): string {
   let index = Math.floor(Math.random() * RETURN_LINES.length);
   if (index === lastReturnLine) index = (index + 1) % RETURN_LINES.length;
   lastReturnLine = index;
-  return RETURN_LINES[index] ?? RETURN_LINES[0]!;
+  return RETURN_LINES[index] ?? "I'm ready whenever you are.";
 }
 // The exact welcome line is synthesized with the ElevenLabs Chef voice. The
 // bundled clip stays as an offline fallback if synthesis ever fails.
@@ -283,7 +285,7 @@ if (typeof window !== "undefined") {
       sessionStorage.removeItem(AUTH_RESUME_KEY);
       // Keep the "already greeted" flag: signing in reloads the page, but the
       // welcome line is only ever said once per session.
-      setVoiceEnabled(true);
+      // Preserve an explicit mute through account changes.
       started = false;
     }
   } catch {}
@@ -503,7 +505,7 @@ export function VoiceGreeting() {
       setGreetingReady(true);
       try {
         const audio = getOutputAudio();
-        if (audio && !started) {
+        if (audio && !disposed && canPrepareWelcomeAudio(started, speakingRef.current, isVoicePlaybackClaimed())) {
           audio.preload = "auto";
           audio.src = url;
           audio.load();
@@ -747,6 +749,7 @@ export function VoiceGreeting() {
     // from "wait for full audio" (~1.5-3s) to "wait for first sentence"
     // (~400-700ms) without changing voice, personality, or answer length.
     async function speak(text: string): Promise<void> {
+      if (disposed || !getVoiceEnabled()) return;
       if (pardonPendingRef.current) {
         pardonPendingRef.current = false;
         text = `Pardon me. ${text}`;
@@ -780,9 +783,9 @@ export function VoiceGreeting() {
       );
 
       for (let i = 0; i < chunks.length; i += 1) {
-        if (speechEpoch !== speechEpochRef.current) break;
+        if (disposed || !getVoiceEnabled() || speechEpoch !== speechEpochRef.current) break;
         const res = await ttsPromises[i];
-        if (speechEpoch !== speechEpochRef.current) break;
+        if (disposed || !getVoiceEnabled() || speechEpoch !== speechEpochRef.current) break;
         if (res?.audio) logVoiceStage("ElevenLabs audio received", { kind: "reply", chunk: i + 1 });
         await speakOne(chunks[i], res as { audio: string | null; error?: string | null }, {
           isFirstChunk: i === 0,
@@ -815,12 +818,13 @@ export function VoiceGreeting() {
       // App Store rule: inside the native app the microphone prompt must not
       // appear until the person chooses a voice feature. Chef still greets and
       // everything else works; we simply do not open the mic until then.
-      if (isNativeApp() && !hasConsent("microphone")) {
+      if (micStateRef.current === "denied" || (isNativeApp() && !hasConsent("microphone"))) {
         await new Promise((r) => setTimeout(r, 1200));
         return null;
       }
 
       while (speakingRef.current) {
+        if (disposed || !getVoiceEnabled()) return null;
         await new Promise((r) => setTimeout(r, 20));
       }
       console.info("[voice] MIC_STARTED");
@@ -1108,7 +1112,7 @@ export function VoiceGreeting() {
               // "doors opening" event so voice + animation begin together.
               // Cap the wait so a missed event never stalls the greeting.
               await waitForFridgeVoiceReady(6200);
-              if (disposed || started || speakingRef.current) return;
+              if (disposed || !getVoiceEnabled() || started || speakingRef.current || isVoicePlaybackClaimed()) return;
               markVoiceTiming("runFlow: aligned with fridge voice-ready pause");
 
               const playbackClaim = claimVoicePlayback();
@@ -1141,6 +1145,7 @@ export function VoiceGreeting() {
                   if (settled) return;
                   settled = true;
                   const ownsPlayback = isVoicePlaybackClaimCurrent(playbackClaim);
+                  disarmAudioGate();
                   unregisterVoiceAudio(audio);
                   releaseVoicePlaybackClaim(playbackClaim);
                   if (ownsPlayback) speakingRef.current = false;
@@ -1162,7 +1167,7 @@ export function VoiceGreeting() {
                     exactError: "none",
                   }));
                   emitVoiceMeter({ phase: "speaking", note: "welcome audio started" });
-                  void armAudioGate(() => {
+                  if (!isNativeApp() || hasConsent("microphone")) void armAudioGate(() => {
                     if (!speakingRef.current) return;
                     // User started talking during the welcome — stop instantly.
                     if (noteInterruption()) pardonPendingRef.current = true;
@@ -1250,16 +1255,17 @@ export function VoiceGreeting() {
         // iOS Safari, killing the whole conversation. Assume granted and
         // let per-turn denial recover via conversationTurn's retry.
         const mobileWeb = isMobileVoiceEnvironment();
-        if (!mobileWeb) {
+        if (!mobileWeb || isNativeApp()) {
           const status = await requestMicOnce();
           logVoiceStage("microphone permission result", { status });
+          if (status === "granted" && isNativeApp()) grantConsent("microphone");
           if (status !== "granted") return; // desktop: modal shown; loop paused
         } else {
           setMicState("granted");
           logVoiceStage("microphone permission result", { status: "granted", mobileWeb: true });
         }
 
-        while (loopingRef.current && !disposed) {
+        while (loopingRef.current && !disposed && getVoiceEnabled()) {
           if (getVoiceSessionOwner() !== "global") break;
           recordVoiceHealth("loop_iteration");
           try {
@@ -1288,6 +1294,7 @@ export function VoiceGreeting() {
     // calling play(). Requires greetingAudioUrl to be preloaded already;
     // if it isn't, we bail so the async runFlow path handles it.
     const playGreetingInGesture = (): boolean => {
+      if (!getVoiceEnabled() || speakingRef.current || isVoicePlaybackClaimed()) return false;
       // The welcome line belongs to the first app open only. If it has already
       // been said this session, let the async loop speak a short varied line.
       if (hasGreetedThisSession()) return false;
@@ -1664,6 +1671,7 @@ export function VoiceGreeting() {
     // never interferes with normal taps, and it removes itself once used.
     const silentRecover = (event: Event) => {
       if (!event.isTrusted) return;
+      if (!getVoiceEnabled() || speakingRef.current || isVoicePlaybackClaimed()) return;
       try {
         if (pendingSpeechRef.current) unlockHandlerRef.current?.();
         else if (!bootstrapped) firstTap(event);
@@ -1675,6 +1683,18 @@ export function VoiceGreeting() {
     window.addEventListener("pointerdown", silentRecover, { capture: true, passive: true });
     window.addEventListener("touchstart", silentRecover, { capture: true, passive: true });
     window.addEventListener("keydown", silentRecover, { capture: true });
+    const onVoicePreference = () => {
+      speechEpochRef.current += 1;
+      if (!getVoiceEnabled()) {
+        loopingRef.current = false;
+        finishActiveListenRef.current?.();
+        recognizerRef.current?.stop();
+      } else {
+        loopingRef.current = true;
+        void runFlow();
+      }
+    };
+    window.addEventListener(VOICE_PREF_EVENT, onVoicePreference);
 
 
     // Begin the hands-free loop immediately on every platform. Native builds
@@ -1823,6 +1843,7 @@ export function VoiceGreeting() {
       window.removeEventListener("pointerdown", silentRecover, { capture: true } as any);
       window.removeEventListener("touchstart", silentRecover, { capture: true } as any);
       window.removeEventListener("keydown", silentRecover, { capture: true } as any);
+      window.removeEventListener(VOICE_PREF_EVENT, onVoicePreference);
       window.removeEventListener(FRIDGE_INTRO_VOICE_TAP_EVENT, onTap);
       window.removeEventListener("tfc:open-chef-voice", onCompanionOpen as EventListener);
       window.removeEventListener("tfc:chef-said", onChefSaid as EventListener);

@@ -1,5 +1,11 @@
 # Upgrade roadmap (Sept 2026)
 
+## Build 516 welcome correction
+- [x] Correct mobile banner/fridge gap without resizing doors; move welcome line below the refrigerator.
+- [x] Replace greeting with the requested two sentences; prevent preload/unlock from replacing active audio; request native mic after greeting and preserve mute.
+- [ ] Verify browser startup, listening, mute, and context; upload current fixes as a new TestFlight build.
+- [ ] Physical iPhone audio, interruption and permission checks — requires Justin's iPhone; no App Review submission.
+
 ## Mobile welcome controls
 - [x] Compact Home, Back, and sound controls; verified complete opening logo/title at 320px, 375px, and 402px with simulated iPhone safe area; animation completes with no browser errors. Allow the main page brand title to wrap rather than truncate on phones.
 
@@ -131,3 +137,8 @@ TestFlight build; grocery price provider choice; exact old black app icon.
 ## Sep 24 — App Review polish
 - [x] Replace the installed-app “Add App” action with an App Store link.
 - [x] Keep technical error details out of the customer-facing recovery screen while preserving error reporting and recovery.
+
+## iPhone build for Apple resubmission
+- [x] GitHub access restored: new fine-grained key saved, verified read+write on justinbanta1111-stack/The-Fridge-and-Cupboard.
+- [x] Latest app code sent to GitHub (38 files, commit 447de82); iOS TestFlight build triggered (run 112 -> build 512).
+- [ ] Confirm build 512 finished uploading and appears in TestFlight; then physical sandbox test of purchase, cancel, restore, sign-in and voice flow before resubmitting.

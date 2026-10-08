@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 
 import fridgeInteriorAsset from "@/assets/fridge-interior.jpg.asset.json";
@@ -34,6 +34,22 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
   const [doorsOpen, setDoorsOpen] = useState(false);
   const [doorMotionStarted, setDoorMotionStarted] = useState(false);
   const [closing, setClosing] = useState(false);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [fridgeTop, setFridgeTop] = useState(170);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const header = headerRef.current;
+    if (!scene || !header) return;
+    const align = () => {
+      setFridgeTop(header.offsetTop + header.getBoundingClientRect().height + 12);
+    };
+    align();
+    const observer = new ResizeObserver(align);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   // Render visible from the first paint — toggling opacity caused a brief
   // startup flicker on mobile. Hydration mismatch is not a concern here
@@ -145,12 +161,13 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
 
   return (
     <div
+      ref={sceneRef}
       aria-hidden={closing}
       data-fridge-intro=""
       className={`fixed inset-0 z-[100] overflow-x-hidden overflow-y-auto transition-all ease-in-out ${
         closing ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
-      style={{ perspective: "2000px", backgroundColor: "#fdfaf4", transitionDuration: `${FADE_MS}ms`, transform: closing ? "translateY(-12px) scale(1.01)" : undefined, opacity: visible ? undefined : 0, transition: visible ? undefined : "opacity 80ms ease", scrollbarGutter: "stable both-edges" as any }}
+      style={{ "--intro-fridge-top": `${fridgeTop}px`, perspective: "2000px", backgroundColor: "#fdfaf4", transitionDuration: `${FADE_MS}ms`, transform: closing ? "translateY(-12px) scale(1.01)" : undefined, opacity: visible ? undefined : 0, transition: visible ? undefined : "opacity 80ms ease", scrollbarGutter: "stable both-edges" as any } as React.CSSProperties}
     >
       {/* Light kitchen backdrop — soft, no dark layer over the fridge */}
       <div
@@ -172,7 +189,7 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
 
 
 
-      <div data-intro-header="" className="absolute left-1/2 top-[calc(env(safe-area-inset-top,0px)+6px)] sm:top-[64px] -translate-x-1/2 z-[115] w-full max-w-3xl pointer-events-none">
+      <div ref={headerRef} data-intro-header="" className="absolute left-1/2 top-[calc(env(safe-area-inset-top,0px)+6px)] sm:top-[64px] -translate-x-1/2 z-[115] w-full max-w-3xl pointer-events-none">
         <div
           className="relative mx-3 overflow-hidden rounded-xl px-3 py-2 sm:mx-4 sm:px-4 sm:py-2.5 shadow-xl"
           style={{
@@ -361,6 +378,7 @@ export function FridgeIntro({ onDismissed, onClosing }: { onDismissed?: () => vo
 function FridgeShell() {
   return (
     <div
+      data-intro-shell=""
       className="absolute left-1/2 -translate-x-1/2 z-[85] top-[clamp(226px,calc(34svh_-_6px),244px)] bottom-[18px] sm:top-[268px] sm:bottom-[18px] w-[calc(85%+18px)] max-w-[378px] sm:max-w-[458px] rounded-[34px] pointer-events-none"
       style={{
         background:
@@ -386,6 +404,7 @@ function FridgeShell() {
 function FridgeInterior({ revealing }: { revealing: boolean }) {
   return (
     <div
+      data-intro-interior=""
       className="pointer-events-none absolute left-1/2 -translate-x-1/2 z-[90] top-[clamp(232px,34svh,250px)] bottom-[24px] sm:top-[274px] sm:bottom-[24px] w-[85%] max-w-[360px] sm:max-w-[440px] overflow-hidden rounded-[28px] ring-1 ring-stone-300/40 shadow-2xl"
       style={{ opacity: revealing ? 1 : 0, transition: `opacity ${DOOR_DURATION_MS}ms ease-out` }}
     >

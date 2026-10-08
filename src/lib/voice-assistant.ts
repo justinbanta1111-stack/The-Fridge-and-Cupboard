@@ -287,6 +287,10 @@ export function isVoicePlaybackClaimCurrent(claim: number): boolean {
   return playbackClaimed && claim === playbackSeq;
 }
 
+export function isVoicePlaybackClaimed(): boolean {
+  return playbackClaimed;
+}
+
 export function releaseVoicePlaybackClaim(claim: number): void {
   if (claim === playbackSeq) playbackClaimed = false;
 }
@@ -371,10 +375,12 @@ export function waitForVoiceAudioReady(
       audio.removeEventListener("canplaythrough", onReady);
       audio.removeEventListener("error", onError);
       audio.removeEventListener("abort", onError);
+      clearTimeout(timeout);
       resolve(ready && isVoicePlaybackClaimCurrent(claim));
     };
     const onReady = () => finish(true);
     const onError = () => finish(false);
+    const timeout = setTimeout(() => finish(false), 8000);
     audio.addEventListener("canplay", onReady, { once: true });
     audio.addEventListener("canplaythrough", onReady, { once: true });
     audio.addEventListener("error", onError, { once: true });
@@ -397,6 +403,8 @@ export function markVoiceAudioUnlocked() {
 
 export async function unlockVoiceAudio(): Promise<boolean> {
   if (voiceAudioUnlocked) return true;
+  // A startup touch must not overwrite the greeting with the silent WAV.
+  if (playbackClaimed || isVoiceSpeaking()) return true;
   if (unlockInFlight) return unlockInFlight;
   unlockInFlight = (async () => {
     const audio = getOutputAudio();

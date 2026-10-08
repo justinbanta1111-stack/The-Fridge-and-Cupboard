@@ -431,7 +431,22 @@
     top: var(--app-nav-offset);
   }
   [data-intro-header] {
-    top: 6px;
+    top: 16px;
+  }
+  [data-intro-fridge], [data-intro-interior] {
+    top: var(--intro-fridge-top, 170px);
+    bottom: calc(24px + 205px - var(--intro-fridge-top, 170px));
+  }
+  [data-intro-shell] {
+    top: calc(var(--intro-fridge-top, 170px) - 6px);
+    bottom: calc(18px + 205px - var(--intro-fridge-top, 170px));
+  }
+  [data-fridge-intro] .fc-welcome-line {
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    color: var(--ink);
+    font-weight: 600;
+    animation-delay: 0.3s;
+    animation-duration: 0.6s;
   }
   [data-intro-header] .intro-emblem {
     width: 96px !important;
