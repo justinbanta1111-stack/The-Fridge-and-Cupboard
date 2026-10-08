@@ -123,7 +123,7 @@ export class MobileRecognizer {
     const ZCR_MAX = 0.32;
     // A natural pause commits the turn quickly, while still leaving enough
     // room for a brief mid-sentence breath.
-    const SILENCE_MS = 1100;
+    const SILENCE_MS = 900;
     const MIN_WAIT_FOR_SPEECH_MS = 6000;
 
     processor.onaudioprocess = (event) => {
