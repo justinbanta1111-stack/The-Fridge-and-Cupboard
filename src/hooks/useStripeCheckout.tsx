@@ -36,6 +36,13 @@ export function useStripeCheckout() {
     setOptions(null);
   }, []);
 
+  // Home/Back must always dismiss an open purchase sheet or checkout.
+  useEffect(() => {
+    const close = () => closeCheckout();
+    window.addEventListener("tfc:close-overlays", close);
+    return () => window.removeEventListener("tfc:close-overlays", close);
+  }, [closeCheckout]);
+
   const checkoutElement = !isOpen || !options
     ? null
     : native
