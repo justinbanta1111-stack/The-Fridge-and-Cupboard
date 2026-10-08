@@ -64,6 +64,26 @@ type PurchasesModule = any;
 
 let sdkPromise: Promise<PurchasesModule | null> | null = null;
 
+/** Store calls can stall (no network, StoreKit not answering). Never wait forever. */
+export class StoreTimeoutError extends Error {
+  constructor(msg: string) {
+    super(msg);
+    this.name = "StoreTimeoutError";
+  }
+}
+function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new StoreTimeoutError(msg)), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+function logStore(step: string, detail?: unknown) {
+  try { console.warn(`[native-billing] ${step}`, detail ?? ""); } catch { /* ignore */ }
+}
+
 async function loadSdk(): Promise<PurchasesModule | null> {
   if (!isNativeApp()) return null;
   if (!sdkPromise) {
@@ -77,16 +97,21 @@ async function loadSdk(): Promise<PurchasesModule | null> {
           ? (import.meta.env["VITE_REVENUECAT_IOS_KEY"] || REVENUECAT_IOS_PUBLIC_KEY)
           : import.meta.env["VITE_REVENUECAT_ANDROID_KEY"];
         if (!apiKey) return null;
-        await Purchases.configure({ apiKey });
-        try {
-          const { supabase } = await import("@/integrations/supabase/client");
-          const { data } = await supabase.auth.getUser();
-          if (data.user?.id) await Purchases.logIn({ appUserID: data.user.id });
-        } catch {
-          /* anonymous purchases still work */
-        }
+        await withTimeout(Purchases.configure({ apiKey }), 10000, STORE_UNAVAILABLE);
+        // Linking the account must never block the purchase sheet.
+        void (async () => {
+          try {
+            const { supabase } = await import("@/integrations/supabase/client");
+            const { data } = await withTimeout(supabase.auth.getUser(), 5000, "auth timeout");
+            if (data.user?.id) await withTimeout(Purchases.logIn({ appUserID: data.user.id }), 8000, "login timeout");
+          } catch (e) {
+            logStore("logIn skipped", e);
+          }
+        })();
         return Purchases;
-      } catch {
+      } catch (e) {
+        logStore("configure failed", e);
+        sdkPromise = null; // allow a retry on the next tap
         return null;
       }
     })();
@@ -134,16 +159,35 @@ function isCancel(e: any): boolean {
 export async function startNativePurchase(productId: NativeProductId): Promise<NativeEntitlement> {
   const Purchases = await loadSdk();
   if (!Purchases) throw new Error(STORE_UNAVAILABLE);
-  const { products } = await Purchases.getProducts({ productIdentifiers: [productId] });
-  const product = products?.[0];
+  let products: any[] = [];
+  try {
+    const res = await withTimeout<any>(
+      Purchases.getProducts({ productIdentifiers: [productId] }),
+      15000,
+      "The App Store didn't respond. Please check your connection and try again.",
+    );
+    products = res?.products ?? [];
+  } catch (e) {
+    logStore("getProducts failed", e);
+    throw e instanceof StoreTimeoutError ? e : new Error(STORE_UNAVAILABLE);
+  }
+  logStore("getProducts", products.map((p: any) => p?.identifier));
+  const product = products.find((p: any) => p?.identifier === productId) ?? products[0];
   if (!product) throw new Error("That subscription isn't available on this device right now.");
   try {
-    const result = await Purchases.purchaseStoreProduct({ product });
+    // Apple's sheet waits on the shopper, so allow a long window, but never forever.
+    const result = await withTimeout<any>(
+      Purchases.purchaseStoreProduct({ product }),
+      180000,
+      "The purchase didn't finish. If you were charged it will appear after Restore Purchases.",
+    );
     const ent = toEntitlement(result);
     notifyEntitlementChanged();
     return ent;
   } catch (e) {
+    logStore("purchase failed", e);
     if (isCancel(e)) throw new PurchaseCancelledError();
+    if (e instanceof StoreTimeoutError) throw e;
     throw new Error("The purchase couldn't be completed. Nothing was charged.");
   }
 }
@@ -156,7 +200,11 @@ export async function restoreNativePurchases(): Promise<NativeEntitlement> {
     if (!isNativeApp()) return INACTIVE;
     throw new Error(STORE_UNAVAILABLE);
   }
-  const result = await Purchases.restorePurchases();
+  const result = await withTimeout<any>(
+    Purchases.restorePurchases(),
+    30000,
+    "The App Store didn't respond. Please try Restore Purchases again.",
+  );
   notifyEntitlementChanged();
   return toEntitlement(result);
 }
@@ -166,7 +214,7 @@ export async function getNativeEntitlement(): Promise<NativeEntitlement> {
   const Purchases = await loadSdk();
   if (!Purchases) return INACTIVE;
   try {
-    const info = await Purchases.getCustomerInfo();
+    const info = await withTimeout<any>(Purchases.getCustomerInfo(), 10000, "timeout");
     return toEntitlement(info);
   } catch {
     return INACTIVE;
