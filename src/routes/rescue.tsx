@@ -97,7 +97,12 @@ const URGENCY_META: Record<string, { label: string; cls: string; icon: typeof Cl
 };
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) return error.message;
+  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  if (/^(SCAN_INVALID:|Scanner API|Store scan failed|Unauthorized)|undefined is not|Cannot read|TypeError|is not a function/i.test(raw)) {
+    console.error("[scan] technical error", raw);
+    return "I couldn't finish that scan. Tap Retry scan and I'll try that photo again.";
+  }
+  if (raw) return raw.replace(/^[A-Z_]+:\s*/, "");
   if (typeof error === "string" && error) return error;
   return "The scanner API connection failed. Please try another photo or retry in a moment.";
 }
@@ -148,8 +153,8 @@ function RescuePage() {
       : "default";
 
   const analyzeMut = useMutation({
-    mutationFn: (dataUrl: string) =>
-      analyzeFn({
+    mutationFn: async (dataUrl: string) => {
+      const res = await analyzeFn({
         data: {
           imageDataUrl: dataUrl,
           restrictions,
@@ -159,7 +164,13 @@ function RescuePage() {
           source,
           purchasedDaysAgo,
         },
-      }),
+      });
+      if (!res || typeof res !== "object" || !Array.isArray((res as any).items)) {
+        console.error("[scan] invalid analysis response", res);
+        throw new Error("SCAN_INVALID: The scan reply was incomplete.");
+      }
+      return res;
+    },
     onSuccess: (result) => {
       // Let the voice chef see the same leftovers the user just scanned,
       // so the conversation can continue from them.
