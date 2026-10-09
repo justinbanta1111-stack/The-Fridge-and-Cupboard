@@ -79,6 +79,11 @@ function nativeCorsHeaders(request: Request): Record<string, string> | null {
       request.headers.get("access-control-request-headers") ??
       "authorization, content-type, x-tsr-serverfn, x-tsr-redirect, accept",
     "Access-Control-Max-Age": "86400",
+    // Cross-origin JS can only read non-safelisted headers that are exposed.
+    // The app's server-call decoder relies on these to parse replies; without
+    // them every reply in the installed app was misread (e.g. "he.items").
+    "Access-Control-Expose-Headers":
+      "x-tss-serialized, x-tss-raw, x-tsr-redirect, content-type, content-length",
     Vary: "Origin",
   };
 }
