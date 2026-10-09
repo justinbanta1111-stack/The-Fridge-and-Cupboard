@@ -188,6 +188,8 @@ export const Route = createFileRoute("/")({
           "Scan your fridge. Scan your cupboard. Use your leftovers. Save money. Reduce food waste.",
       },
       { property: "og:url", content: "https://thefridgeandcupboard.com/" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [{ rel: "canonical", href: "https://thefridgeandcupboard.com/" }],
   }),
@@ -275,6 +277,10 @@ function getErrorMessage(error: unknown) {
     return raw.replace(/^TIMEOUT:\s*/, "⏱ ");
   if (raw.startsWith("NETWORK:"))
     return raw.replace(/^NETWORK:\s*/, "📶 ");
+  if (/^(SCAN_INVALID:|Scanner API|Store scan failed|Unauthorized)|undefined is not|Cannot read|TypeError|is not a function/i.test(raw)) {
+    console.error("[scan] technical error", raw);
+    return "I couldn't finish that scan. Tap Retry scan and I'll try that photo again.";
+  }
   return raw;
 }
 
@@ -432,18 +438,24 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
   useEffect(() => clearAlmostThere, []);
 
   const analyzeMut = useMutation({
-    mutationFn: (dataUrl: string) =>
-      analyzeFn({
+    mutationFn: async (dataUrl: string) => {
+      const res = await analyzeFn({
         data: {
           imageDataUrl: dataUrl,
           extraImageDataUrls: extraFrames.length ? extraFrames : undefined,
           storage,
           restrictions,
         },
-      }),
+      });
+      if (!res || typeof res !== "object" || !Array.isArray((res as any).items)) {
+        console.error("[scan] invalid analysis response", res);
+        throw new Error("SCAN_INVALID: The scan reply was incomplete.");
+      }
+      return res;
+    },
     onMutate: () => {
       try {
-        speakNow("Got it — let me take a look.");
+        speakNow("Let me take a look at what you've got.");
         clearAlmostThere();
         almostThereRef.current = setTimeout(() => speakNow("Almost there."), 9000);
       } catch {}
@@ -456,7 +468,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
       chefSayThenListen(
         msg.startsWith("NO_ITEMS:")
           ? "I couldn't clearly make out any food in that photo. Could you take another one with more light, with the door open, or tell me what's in there?"
-          : "Sorry, I had trouble reading that photo. Tap try again, or tell me what you have and I'll help from there.",
+          : "I couldn't finish that scan. Tap Retry scan and I'll try that photo again.",
       );
     },
     onSuccess: (result) => {
