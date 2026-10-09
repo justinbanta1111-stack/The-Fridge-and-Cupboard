@@ -142,6 +142,7 @@ import { LifeModeStrip } from "@/components/LifeModeStrip";
 import { FamilyLegacyStrip } from "@/components/FamilyLegacyStrip";
 import { PersonalizedWelcome } from "@/components/PersonalizedWelcome";
 import { SayItNaturally } from "@/components/SayItNaturally";
+import { PreferredNamePrompt } from "@/components/PreferredNamePrompt";
 import { WhatsNew } from "@/components/WhatsNew";
 import { TodaysInspiration } from "@/components/TodaysInspiration";
 import { SendSuggestion } from "@/components/SendSuggestion";
@@ -718,6 +719,7 @@ export function ScannerApp({ showIntro = true, initialStorage = "fridge" }: { sh
             {showIntro ? (
               <>
                  <ChefGreetingBadge />
+                 <PreferredNamePrompt />
                  <Hero onTryItFree={scrollToScan} showTryItFree={showSignupBlocks} />
                  <HomeFourCards onUseExistingPhoto={handleQuickAction} />
 

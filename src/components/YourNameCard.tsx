@@ -5,9 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { resolveUserName, setSavedUserName } from "@/lib/user-name";
+import { resolveUserName, setPreferredName } from "@/lib/user-name";
 
-/** Lets someone tell Chef Super J what to call them. Optional, stays on the device. */
+/** Lets someone tell Chef Super J what to call them. Optional, saved to your own account (or this visit for guests). */
 export function YourNameCard({ className }: { className?: string }) {
   const [name, setName] = useState("");
   const [ready, setReady] = useState(false);
@@ -19,8 +19,8 @@ export function YourNameCard({ className }: { className?: string }) {
     });
   }, []);
 
-  function save() {
-    const saved = setSavedUserName(name);
+  async function save() {
+    const saved = await setPreferredName(name);
     setName(saved);
     toast.success(saved ? `Chef will call you ${saved}.` : "Name cleared.");
   }

@@ -31,6 +31,7 @@ import greetingAsset from "@/assets/chef-welcome-relaxed.mp3.asset.json";
 const bundledGreetingAudioUrl = greetingAsset.url;
 import { canSelfHeal, selfHealAndReload } from "@/lib/launch-recovery";
 import { isNativeApp } from "@/lib/native-runtime";
+import { initNameIdentity } from "@/lib/user-name";
 
 
 function NotFoundComponent() {
@@ -189,6 +190,9 @@ function RootComponent() {
   useEffect(() => {
     setupPwaInstallDiagnostics();
   }, []);
+
+  // Keeps each person's name and conversation private to their own account.
+  useEffect(() => initNameIdentity(), []);
 
   return (
     <QueryClientProvider client={queryClient}>

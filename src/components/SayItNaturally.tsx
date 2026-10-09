@@ -3,6 +3,7 @@ import { Loader2, MessageCircleHeart, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { chatWithChef, chatWithChefGuest } from "@/lib/voice-chat.functions";
 import { speak, stopAllAudio } from "@/lib/voice-assistant";
+import { resolveUserName } from "@/lib/user-name";
 
 const PHRASES = [
   "I don't like onions.",
@@ -70,7 +71,13 @@ export function SayItNaturally() {
     stopAllAudio();
     try {
       const signedIn = await signedInNow();
-      const input = { message, history: sharedHistory().slice(-12), voicePersonality: "chef" as const };
+      const userName = await resolveUserName();
+      const input = {
+        message,
+        history: sharedHistory().slice(-12),
+        voicePersonality: "chef" as const,
+        ...(userName ? { userName } : {}),
+      };
       const call = signedIn
         ? chatWithChef({ data: input as any })
         : chatWithChefGuest({ data: input as any });

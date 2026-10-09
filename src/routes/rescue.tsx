@@ -575,6 +575,11 @@ function RescuePage() {
                               <CheckCircle2 className="mr-1 h-3 w-3" /> {u}
                             </Badge>
                           ))}
+                        </div>
+                        <div className="mt-2 text-xs font-semibold text-muted-foreground">
+                          {r.alsoNeed.length ? "You still need" : "You have everything you need"}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
                           {r.alsoNeed.map((u, j) => (
                             <Badge key={j} variant="outline" className="border-border/60 text-muted-foreground">
                               + {u}
@@ -634,7 +639,8 @@ function RescuePage() {
                         </div>
 
                         <p className="mt-2 text-sm text-muted-foreground">{r.hook}</p>
-                        <div className="mt-3 flex flex-wrap gap-1.5">
+                        <div className="mt-3 text-xs font-semibold text-success">Uses your leftovers</div>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
                           {r.usesLeftovers.map((u, j) => (
                             <Badge key={j} className="bg-success/15 text-success hover:bg-success/15">
                               <Recycle className="mr-1 h-3 w-3" /> {u}

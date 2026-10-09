@@ -48,7 +48,7 @@ import {
   addSpeakerSample,
 } from "@/lib/speaker-profiles";
 import { supabase } from "@/integrations/supabase/client";
-import { resolveUserName } from "@/lib/user-name";
+import { resolveUserName, greetingFor, wasNameSkipped, markNameSkipped, setPreferredName, extractName, extractNameCorrection } from "@/lib/user-name";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
 import { useLanguage } from "@/lib/i18n/context";
 import { emitVoiceMeter } from "@/components/VoiceStatusMeter";
@@ -70,7 +70,22 @@ const bundledGreetingAudioUrl = greetingAsset.url;
  *   Mobile:  first user tap  →  unlock audio (sync)  →  welcome  →  mic prompt  →  loop
  *   Desktop: mount            →  request mic         →  welcome  →  loop
  */
-const GREETING_TEXT = WELCOME_GREETING;
+// The opening line depends on who is using the app: a returning account is
+// welcomed back by name; someone new is asked what Chef should call them.
+let GREETING_TEXT = WELCOME_GREETING;
+let greetingPreparedFor = "";
+let greetingAsksName = false;
+async function refreshGreetingText(): Promise<string> {
+  try {
+    const name = await resolveUserName();
+    greetingAsksName = !name && !wasNameSkipped();
+    GREETING_TEXT = name ? greetingFor(name) : greetingAsksName ? greetingFor("") : WELCOME_GREETING;
+  } catch {
+    greetingAsksName = false;
+    GREETING_TEXT = WELCOME_GREETING;
+  }
+  return GREETING_TEXT;
+}
 
 /**
  * Said instead of the welcome line whenever the voice loop starts again later
@@ -219,6 +234,14 @@ function waitForFridgeVoiceReady(timeoutMs = 6200): Promise<void> {
 }
 
 async function preloadGreetingAudio(): Promise<string | null> {
+  const wanted = await refreshGreetingText();
+  if (greetingPreparedFor && greetingPreparedFor !== wanted) {
+    // Someone else (or a newly named person) is here — prepare their greeting.
+    greetingAudioUrl = null;
+    greetingAudioBase64 = null;
+    greetingPreloadPromise = null;
+  }
+  greetingPreparedFor = wanted;
   if (greetingAudioUrl) return greetingAudioUrl;
   if (greetingPreloadPromise) return greetingPreloadPromise;
   markVoiceTiming("preload greeting: fetch start");
@@ -335,6 +358,25 @@ export function VoiceGreeting() {
   const recognizerRef = useRef<VoiceRecognizer | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const historyRef = useRef<Turn[]>(loadHistory());
+  const awaitingPreferredNameRef = useRef(false);
+  useEffect(() => {
+    const onReset = () => {
+      historyRef.current = [];
+      awaitingPreferredNameRef.current = false;
+    };
+    const onName = (e: Event) => {
+      if (String((e as CustomEvent).detail ?? "")) awaitingPreferredNameRef.current = false;
+    };
+    window.addEventListener("tfc:personal-reset", onReset);
+    window.addEventListener("tfc:user-name", onName as EventListener);
+    const onSkip = () => { awaitingPreferredNameRef.current = false; };
+    window.addEventListener("tfc:name-skipped", onSkip);
+    return () => {
+      window.removeEventListener("tfc:personal-reset", onReset);
+      window.removeEventListener("tfc:user-name", onName as EventListener);
+      window.removeEventListener("tfc:name-skipped", onSkip);
+    };
+  }, []);
   const prefsRef = useRef(restrictions);
   const loopingRef = useRef(true);
   const runningRef = useRef(false);
@@ -919,6 +961,33 @@ export function VoiceGreeting() {
         return "continue";
       }
       if (!transcript) return "continue";
+
+      // ---- Preferred name: answer to "What would you like me to call you?" ----
+      if (awaitingPreferredNameRef.current && !queuedPrompt) {
+        awaitingPreferredNameRef.current = false;
+        if (/^\s*(no|nope|skip|pass|not now|no thanks|rather not|doesn'?t matter)\b/i.test(transcript)) {
+          markNameSkipped();
+          await speak("No problem at all! What are we cooking today?");
+          return "continue";
+        }
+        const given = extractName(transcript, true);
+        if (given) {
+          await setPreferredName(given);
+          await speak(`Nice to meet you, ${given}! What are we cooking today?`);
+          return "continue";
+        }
+        // Not a name — treat it as a normal question.
+      } else {
+        const corrected = extractNameCorrection(transcript);
+        if (corrected) {
+          await setPreferredName(corrected);
+          const rest = transcript.replace(/^.*?\b(call me|my name is|my name's|it's|i'm)\s+\S+[.,!]?\s*/i, "").trim();
+          if (rest.split(/\s+/).length < 3) {
+            await speak(`Got it — I'll call you ${corrected}. What are we cooking today?`);
+            return "continue";
+          }
+        }
+      }
       recordVoiceHealth("transcript", {
         ms: lastMicMsRef.current,
         note: `${transcript.length} chars`,
@@ -1088,7 +1157,7 @@ export function VoiceGreeting() {
           // begins immediately. Muting must never disable the rest of the app.
           if (!getVoiceEnabled()) {
             started = true;
-            markGreeted();
+            markGreeted(); if (greetingAsksName) awaitingPreferredNameRef.current = true;
           } else if (hasGreetedThisSession()) {
             // The welcome line is said once per app open. Coming back to the
             // voice loop later in the same session uses a short, varied,
@@ -1214,7 +1283,7 @@ export function VoiceGreeting() {
 
               if (greetingOk) {
                 started = true;
-                markGreeted();
+                markGreeted(); if (greetingAsksName) awaitingPreferredNameRef.current = true;
               }
             } catch (err) {
               console.error("[voice] greeting playback failed", err);
@@ -1243,7 +1312,7 @@ export function VoiceGreeting() {
                 };
               }
               started = true;
-              markGreeted();
+              markGreeted(); if (greetingAsksName) awaitingPreferredNameRef.current = true;
             }
           }
         } else {
@@ -1351,7 +1420,7 @@ export function VoiceGreeting() {
               exactError: "none",
             }));
             started = true;
-            markGreeted();
+            markGreeted(); if (greetingAsksName) awaitingPreferredNameRef.current = true;
             void runFlow();
             return;
           }
@@ -1511,7 +1580,7 @@ export function VoiceGreeting() {
           if (ok) {
             if (pending.kind === "greeting") {
               started = true;
-              markGreeted();
+              markGreeted(); if (greetingAsksName) awaitingPreferredNameRef.current = true;
             }
             void runFlow();
           } else {

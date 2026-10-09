@@ -104,13 +104,17 @@ export type ChefChatReply = z.infer<typeof ReplyShape>;
 
 function userNameLines(userName?: string): string[] {
   const name = (userName ?? "").trim();
-  if (!name) return [];
+  const guard =
+    "Justin, Super J and Chef Super J are YOUR names, never the user's. Never call the user Justin or Super J unless they told you that is their own name in this conversation.";
+  if (!name)
+    return ["", "THE PERSON YOU ARE TALKING TO:", "You do not know their name. Do not use or guess any name.", guard];
   return [
     "",
     "THE PERSON YOU ARE TALKING TO:",
     `Their first name is ${name}.`,
     `Use it naturally now and then — a greeting, a hand-off, an encouraging line ("Sounds good, ${name}."). At most once every few replies, never in every sentence, and never in the middle of instructions.`,
     "If a voice profile identifies a different person speaking, use that person's name instead.",
+    guard,
   ];
 }
 
