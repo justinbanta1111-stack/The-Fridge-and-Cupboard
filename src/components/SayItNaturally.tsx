@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Loader2, MessageCircleHeart, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { chatWithChef, chatWithChefGuest } from "@/lib/voice-chat.functions";
-import { speak } from "@/lib/voice-assistant";
+import { speak, stopAllAudio } from "@/lib/voice-assistant";
 
 const PHRASES = [
   "I don't like onions.",
@@ -31,26 +31,64 @@ export function SayItNaturally() {
   const history = useRef<Turn[]>([]);
   const seq = useRef(0);
 
+  function sharedHistory(): Turn[] {
+    try {
+      const raw = sessionStorage.getItem("tfc.voice.history.v1");
+      const h = raw ? (JSON.parse(raw) as Turn[]) : [];
+      return Array.isArray(h) && h.length ? h : history.current;
+    } catch {
+      return history.current;
+    }
+  }
+
+  async function signedInNow(): Promise<boolean> {
+    try {
+      const r = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<null>((res) => setTimeout(() => res(null), 3000)),
+      ]);
+      const u = r && "data" in r ? r.data.session?.user : null;
+      return Boolean(u && !u.is_anonymous);
+    } catch {
+      return false;
+    }
+  }
+
+  function resumeListening() {
+    try {
+      window.dispatchEvent(new CustomEvent("tfc:open-chef-voice", { detail: { autoListen: true } }));
+    } catch {}
+  }
+
   async function ask(message: string) {
+    if (busy) return; // ignore repeated taps while Chef is answering
     const my = ++seq.current;
     setAsked(message);
     setAnswer(null);
     setError(null);
     setBusy(true);
+    stopAllAudio();
     try {
-      const { data } = await supabase.auth.getSession();
-      const signedIn = Boolean(data.session?.user && !data.session.user.is_anonymous);
-      const input = { message, history: history.current.slice(-12), voicePersonality: "chef" as const };
-      const res = signedIn
-        ? await chatWithChef({ data: input as any })
-        : await chatWithChefGuest({ data: input as any });
+      const signedIn = await signedInNow();
+      const input = { message, history: sharedHistory().slice(-12), voicePersonality: "chef" as const };
+      const call = signedIn
+        ? chatWithChef({ data: input as any })
+        : chatWithChefGuest({ data: input as any });
+      const res = await Promise.race([
+        call,
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 25000)),
+      ]);
       if (my !== seq.current) return;
-      const reply = res?.reply?.trim() || "Let's figure that out together — tell me a little more.";
+      const reply = typeof res?.reply === "string" ? res.reply.trim() : "";
+      if (!reply) throw new Error("empty reply");
       history.current.push({ role: "user", text: message }, { role: "assistant", text: reply });
       setAnswer(reply);
-      // Share with the voice loop so follow-up questions keep this context.
-      window.dispatchEvent(new CustomEvent("tfc:chef-said", { detail: { text: reply } }));
-      speak(reply);
+      // Share the question and answer with the voice loop so follow-ups keep context.
+      window.dispatchEvent(new CustomEvent("tfc:chef-said", { detail: { text: reply, userText: message } }));
+      let done = false;
+      const after = () => { if (!done) { done = true; resumeListening(); } };
+      const ok = speak(reply, { onEnd: after, onError: () => after() });
+      if (!ok) after();
     } catch (e) {
       console.warn("[say-it] chef request failed", e);
       if (my === seq.current) setError("Chef couldn't answer just now. Tap to try again.");
@@ -76,6 +114,7 @@ export function SayItNaturally() {
             key={p}
             type="button"
             onClick={() => void ask(p)}
+            disabled={busy}
             aria-pressed={asked === p}
             className="press-lift touch-manipulation rounded-full border border-teal/35 bg-teal/12 px-2.5 py-1.5 text-[12px] font-medium text-ivory/90 transition hover:bg-teal/22"
           >
