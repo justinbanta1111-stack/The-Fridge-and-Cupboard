@@ -2,6 +2,7 @@ import type React from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TalkToChefButton } from "@/components/TalkToChefButton";
 
 /** Shared safe-area navigation reserves space above every page. */
 export function NavControls() {
@@ -46,6 +47,7 @@ export function NavControls() {
         <Button variant="outline" className="h-[44px] min-w-[44px] px-2 text-xs sm:h-11 sm:px-3 sm:text-sm" onClick={goBack} type="button" aria-label="Go back" title="Back" data-nav-back>
           <ArrowLeft aria-hidden="true" /> Back
         </Button>
+        <TalkToChefButton className="ml-auto h-[44px] min-w-[44px] px-2 text-xs sm:h-11 sm:px-3 sm:text-sm" />
       </nav>
     </>
   );
