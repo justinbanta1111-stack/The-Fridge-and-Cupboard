@@ -1745,8 +1745,11 @@ export function VoiceGreeting() {
     // Lines Chef speaks outside this loop (e.g. photo results) are added to
     // the conversation memory so follow-up answers keep the photo context.
     const onChefSaid = (event: Event) => {
-      const text = (event as CustomEvent<{ text?: string }>).detail?.text?.trim();
+      const detail = (event as CustomEvent<{ text?: string; userText?: string }>).detail;
+      const text = detail?.text?.trim();
       if (!text) return;
+      const userText = detail?.userText?.trim();
+      if (userText) historyRef.current.push({ role: "user", text: userText } as Turn);
       historyRef.current.push({ role: "assistant", text } as Turn);
       saveHistory(historyRef.current);
     };
