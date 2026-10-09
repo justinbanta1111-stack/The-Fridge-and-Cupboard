@@ -73,7 +73,7 @@ export function TalkToChefButton({ className }: { className?: string }) {
         aria-label={listening ? "Chef Super J is listening — voice settings" : "Talk to Chef Super J using your voice"}
       >
         <Mic className="mr-2 h-4 w-4" aria-hidden="true" />
-        {listening ? "Chef is listening" : "Talk to Chef"}
+        {listening ? "Listening" : "Talk to Chef"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
