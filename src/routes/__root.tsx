@@ -18,7 +18,6 @@ import { VoiceStateIndicator } from "@/components/VoiceStateIndicator";
 import { NavControls } from "@/components/NavControls";
 import { NativeDeviceSetup } from "@/components/NativeDeviceSetup";
 import { OfflineBanner } from "@/components/OfflineBanner";
-import { TalkToChefButton } from "@/components/TalkToChefButton";
 
 import { ExpiryReminderWatcher } from "@/components/ExpiryReminderWatcher";
 import { VoiceStatusMeter } from "@/components/VoiceStatusMeter";
@@ -203,12 +202,7 @@ function RootComponent() {
         <VoiceStatusMeter />
         <VoiceMuteButton />
         <VoiceStateIndicator />
-        <div
-          className="pointer-events-none fixed right-3 z-40"
-          style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
-        >
-          <TalkToChefButton className="pointer-events-auto max-w-[11rem] shadow-lg" />
-        </div>
+        {/* Talk to Chef lives in the top navigation strip so it never covers content. */}
 
         <ExpiryReminderWatcher />
         <NativeDeviceSetup />
