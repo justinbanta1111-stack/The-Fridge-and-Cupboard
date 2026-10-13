@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { generateText, Output } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
-import { languageName } from "@/lib/i18n/languages";
+import { LANGUAGE_RULES } from "@/lib/chef-language-prompt";
 
 const InsightInput = z.object({
   food: z.string().min(1).max(120),
@@ -54,9 +54,7 @@ export const getFoodInsights = createServerFn({ method: "POST" })
       "Talk about typical amounts and portions rather than absolutes.",
       "HEALTH SAFETY: this is general food information, not medical advice. Never diagnose, never tell anyone to start or stop medication, never make unsupported medical claims.",
       "If the answer depends heavily on a medical condition, medication, allergy or individual situation, say plainly that individual circumstances change the answer and suggest checking with a doctor or registered dietitian.",
-      data.language && !data.language.toLowerCase().startsWith("en")
-        ? `LANGUAGE: write entirely in ${languageName(data.language)} (locale ${data.language}).`
-        : "LANGUAGE: write in English.",
+      ...LANGUAGE_RULES,
     ].join("\n");
 
     const prompt = [

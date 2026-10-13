@@ -7,14 +7,7 @@
  * never because of the phone's system language, an accent, or a stray word.
  */
 function recognitionLocale(): string {
-  if (typeof window === "undefined") return "en-US";
-  try {
-    const stored = window.localStorage.getItem("tfc.language");
-    if (!stored || stored.toLowerCase().startsWith("en")) return "en-US";
-    return stored;
-  } catch {
-    return "en-US";
-  }
+  return "en-US";
 }
 
 // Web Speech API recognition wrapper. Works on Chrome/Edge desktop, Chrome Android,
@@ -125,9 +118,9 @@ export class VoiceRecognizer {
     // Adaptive end-of-speech thresholds. Tuned so Chef starts answering within
     // about a second of the user finishing, while a trailing "and…" or "um"
     // still buys extra patience so nobody gets cut off mid-thought.
-    const SILENCE_SHORT_MS = 850; // clearly finished sentence
-    const SILENCE_BASE_MS = 1100; // normal pause between thoughts
-    const SILENCE_LONG_MS = 1800; // trailing filler / continuation word
+    const SILENCE_SHORT_MS = 600; // clearly finished sentence
+    const SILENCE_BASE_MS = 850; // normal pause between thoughts
+    const SILENCE_LONG_MS = 1400; // trailing filler / continuation word
     const HARD_CAP_MS = 8000; // never hold a partial forever
 
     // Words that suggest the user hasn't finished the sentence yet.

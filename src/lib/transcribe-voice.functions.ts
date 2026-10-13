@@ -29,6 +29,8 @@ export const transcribeVoice = createServerFn({ method: "POST" })
 
     const form = new FormData();
     form.append("model", "openai/gpt-4o-transcribe");
+    form.append("language", "en");
+    form.append("prompt", "Natural American English cooking conversation. Transcribe only audible speech; do not invent words from silence or background noise.");
     form.append("file", new Blob([bin], { type: data.mimeType }), `recording.${ext}`);
 
     console.info("TRANSCRIPTION_API_CALLED", { mimeType: baseMime, ext, bytes: bin.byteLength });

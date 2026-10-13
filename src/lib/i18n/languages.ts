@@ -127,12 +127,7 @@ export function languageName(code: string): string {
 
 /** Best supported language for a list of browser locales. */
 export function detectLanguage(preferred: readonly string[]): string {
-  for (const raw of preferred) {
-    const exact = BY_CODE.get(raw.toLowerCase());
-    if (exact) return exact.code;
-    const base = BY_CODE.get(raw.toLowerCase().split("-")[0]!);
-    if (base) return base.code;
-  }
+  void preferred;
   return DEFAULT_LANGUAGE;
 }
 

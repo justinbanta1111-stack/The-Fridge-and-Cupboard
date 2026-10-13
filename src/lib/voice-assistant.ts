@@ -267,7 +267,7 @@ export function stopAllAudio() {
     // Resolve any playback owner waiting for completion. Calling the captured
     // handler after detaching it prevents stale media events and double loops.
     try {
-      onEnded?.call(audio, new Event("ended"));
+      onEnded?.call(audio, new Event("tfc-playback-cancelled"));
     } catch {
       // Ignore owner cleanup failures.
     }
@@ -455,6 +455,8 @@ export async function playAudioUrl(url: string, options: SpeakOptions = {}): Pro
   audio.muted = false;
   audio.volume = 0.82;
   audio.src = url;
+  audio.playbackRate = getVoiceRate();
+  audio.preservesPitch = true;
     const ready = await waitForVoiceAudioReady(audio, seq);
     if (!ready) {
       if (currentAudio === audio) currentAudio = null;
@@ -468,9 +470,12 @@ export async function playAudioUrl(url: string, options: SpeakOptions = {}): Pro
       voiceAudioUnlocked = true;
       options.onStart?.();
     };
-    audio.onended = () => {
+    audio.onended = (event) => {
       disarmAudioGate();
-      if (seq !== playbackSeq) return resolve(true);
+      if (seq !== playbackSeq) {
+        if (event.type === "tfc-playback-cancelled") options.onEnd?.();
+        return resolve(true);
+      }
       if (currentAudio === audio) currentAudio = null;
       releaseVoicePlaybackClaim(seq);
       options.onEnd?.();
@@ -581,15 +586,20 @@ async function playElevenLabs(text: string, options: SpeakOptions = {}): Promise
     audio.muted = false;
     audio.volume = Math.max(0, Math.min(0.82, options.volume ?? 0.82));
     audio.src = `data:audio/mpeg;base64,${b64}`;
-    audio.playbackRate = (options.rate ?? 1.0) * getVoiceRate();
+    // Pace is synthesized in the shared profile, never changed by a caller.
+    audio.playbackRate = getVoiceRate();
+    audio.preservesPitch = true;
     const done = new Promise<boolean>((resolve) => {
       audio.onplaying = () => {
         voiceAudioUnlocked = true;
         reportVoiceInfo("mobile audio playback", "audio element fired onplaying", audio);
         options.onStart?.();
       };
-      audio.onended = () => {
-        if (seq !== playbackSeq) return resolve(true);
+      audio.onended = (event) => {
+        if (seq !== playbackSeq) {
+          if (event.type === "tfc-playback-cancelled") options.onEnd?.();
+          return resolve(true);
+        }
         if (currentAudio === audio) currentAudio = null;
         releaseVoicePlaybackClaim(seq);
         options.onEnd?.();

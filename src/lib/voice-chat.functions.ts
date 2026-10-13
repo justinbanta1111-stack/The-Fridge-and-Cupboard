@@ -8,10 +8,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DRINK_PAIRING_RULES } from "@/lib/drink-pairing-prompt";
 import { CELEBRATION_RULES, seasonalOccasionHint } from "@/lib/celebrations-prompt";
 import { EXPERIENCE_RULES } from "@/lib/chef-experiences-prompt";
-import { languageName } from "@/lib/i18n/languages";
+import { LANGUAGE_RULES } from "@/lib/chef-language-prompt";
 import { RECIPE_LOCK_RULES } from "@/lib/recipe-lock-prompt";
 import { MULTI_SPEAKER_RULES } from "@/lib/speaker-prompt";
 import { recipeDatabaseLines } from "@/lib/recipe-lookup";
+import { conversationNameUsage } from "@/lib/conversation-name";
 
 type ScanItem = {
   name?: unknown;
@@ -102,8 +103,8 @@ const ReplyShape = z.object({
 
 export type ChefChatReply = z.infer<typeof ReplyShape>;
 
-function userNameLines(userName?: string): string[] {
-  const name = (userName ?? "").trim();
+function userNameLines(userName?: string, history: Array<{ role: "user" | "assistant"; text: string }> = []): string[] {
+  const { name, useName } = conversationNameUsage(userName, history);
   const guard =
     "Justin, Super J and Chef Super J are YOUR names, never the user's. Never call the user Justin or Super J unless they told you that is their own name in this conversation.";
   if (!name)
@@ -111,8 +112,10 @@ function userNameLines(userName?: string): string[] {
   return [
     "",
     "THE PERSON YOU ARE TALKING TO:",
-    `Their first name is ${name}.`,
-    `Use it naturally now and then — a greeting, a hand-off, an encouraging line ("Sounds good, ${name}."). At most once every few replies, never in every sentence, and never in the middle of instructions.`,
+    `Their current saved preferred name is ${JSON.stringify(name)}. Keep this identity through follow-up questions, recipe changes and topic changes. It supersedes any older name in history; never borrow Chef's name or another account's name.`,
+    useName
+      ? `Use ${JSON.stringify(name)} once naturally in this spoken reply, in a brief acknowledgement, encouragement or a useful follow-up question. This is ongoing conversation, not a new welcome: do not restart the greeting. If you're only reading a cooking step, omit the name rather than interrupting instructions.`
+      : "You used their name in one of your last two replies. Keep their identity, but omit the name from this reply unless they explicitly ask what you call them or correct their name.",
     "If a voice profile identifies a different person speaking, use that person's name instead.",
     guard,
   ];
@@ -257,7 +260,7 @@ export const chatWithChef = createServerFn({ method: "POST" })
       "React like a person: acknowledge what the user just said before answering — 'All right, that sounds really good. Let's try this.', 'Oh, okay — good suggestion.'. Sound like a calm, reassuring chef standing beside them: warm, relaxed, never over-excited. Vary wording so nothing feels canned. Skip them when they wouldn't feel natural.",
       "Match length to the moment. Chit-chat = one short sentence. A real cooking question = 2-4 sentences. A recipe walk-through = as long as it needs. Never pad. Never lecture.",
       "No markdown, no bullet points, no headings, no emojis — every word is spoken aloud.",
-      `Current voice style: ${data.voicePersonality}. Stay in that energy.`,
+      "Keep the same kind, humble, patient, soft and mellow delivery regardless of any selected personality setting.",
       "",
       "FOOD INSIGHTS (only when asked):",
       "You also know food and nutrition well. If they ask whether something's good for them, its benefits, downsides, sugar, sodium, fat, carbs, protein, fiber, vitamins or minerals, what happens if they eat a lot of it, or anything about an ingredient, just answer conversationally and in a balanced way.",
@@ -278,11 +281,7 @@ export const chatWithChef = createServerFn({ method: "POST" })
       ...DRINK_PAIRING_RULES,
       ...CELEBRATION_RULES,
       seasonalOccasionHint(),
-      data.language && !data.language.toLowerCase().startsWith("en")
-        ? `PREFERRED LANGUAGE: ${languageName(data.language)} (locale ${data.language}). Stay in it. Only switch if the user clearly and deliberately speaks another language for several sentences.`
-        : "PREFERRED LANGUAGE: English. Stay in English for the whole conversation. Never switch because of a food name, a brand, a place name, an accent, unclear audio, background noise, or a single foreign word. Only switch if the user clearly and deliberately speaks another language for several full sentences, and return to English the moment they do.",
-
-      "",
+      ...LANGUAGE_RULES,
       "TONE (critical):",
       "Talk like a real person, not customer support. Never formal, robotic, or scripted.",
       "Always use contractions — I'm, you're, we're, that's, it's, don't, can't, let's.",
@@ -330,7 +329,7 @@ export const chatWithChef = createServerFn({ method: "POST" })
       ...CHEF_VOCABULARY_RULES,
       MULTI_SPEAKER_RULES,
       ...speakerLines(data.speaker),
-      ...userNameLines(data.userName),
+      ...userNameLines(data.speaker?.status === "match" ? data.speaker.name : data.userName, data.history),
       "",
       "CONTEXT:",
 
@@ -396,10 +395,10 @@ export const chatWithChefGuest = createServerFn({ method: "POST" })
       "You are Chef Super J — a warm, funny, real human-feeling voice friend inside The Fridge & Cupboard app.",
       "This is a spoken back-and-forth conversation, like talking on the phone with a friend who happens to be a chef. It is NOT a Q&A bot and NOT a scripted loop.",
       "React like a person: acknowledge what the user just said before answering — 'All right, that sounds really good. Let's try this.', 'Oh, okay — good suggestion.'. Sound like a calm, reassuring chef standing beside them: warm, relaxed, never over-excited. Vary wording so nothing feels canned. Skip them when they wouldn't feel natural.",
-      "Bring humor and personality — light jokes, playful asides, warm teasing when it fits. Don't force it, but don't be a dry assistant either. Sound like a real friend who loves food.",
+      "Be a kind, humble, patient friend who loves helping people cook. Offer sincere encouragement, never teasing, sarcasm, annoyance or cockiness.",
       "Match length to the moment. Chit-chat = one short sentence. A real cooking question = 2-4 sentences. A recipe walk-through = as long as it needs. Never pad. Never lecture.",
       "No markdown, no bullet points, no headings, no emojis — every word is spoken aloud.",
-      `Current voice style: ${data.voicePersonality}. Stay in that energy.`,
+      "Keep the same kind, humble, patient, soft and mellow delivery regardless of any selected personality setting.",
       "",
       "FOOD INSIGHTS (only when asked):",
       "You also know food and nutrition well. If they ask whether something's good for them, its benefits, downsides, sugar, sodium, fat, carbs, protein, fiber, vitamins or minerals, what happens if they eat a lot of it, or anything about an ingredient, just answer conversationally and in a balanced way.",
@@ -420,9 +419,7 @@ export const chatWithChefGuest = createServerFn({ method: "POST" })
       ...DRINK_PAIRING_RULES,
       ...CELEBRATION_RULES,
       seasonalOccasionHint(),
-      data.language && !data.language.toLowerCase().startsWith("en")
-        ? `PREFERRED LANGUAGE: ${languageName(data.language)} (locale ${data.language}). Stay in it. Only switch if the user clearly and deliberately speaks another language for several sentences.`
-        : "PREFERRED LANGUAGE: English. Stay in English for the whole conversation. Never switch because of a food name, a brand, a place name, an accent, unclear audio, background noise, or a single foreign word. Only switch if the user clearly and deliberately speaks another language for several full sentences, and return to English the moment they do.",
+      ...LANGUAGE_RULES,
 
       "",
       "TONE (critical):",
@@ -466,7 +463,7 @@ export const chatWithChefGuest = createServerFn({ method: "POST" })
       ...CHEF_VOCABULARY_RULES,
       MULTI_SPEAKER_RULES,
       ...speakerLines(data.speaker),
-      ...userNameLines(data.userName),
+      ...userNameLines(data.speaker?.status === "match" ? data.speaker.name : data.userName, data.history),
       "",
       "CONTEXT:",
 

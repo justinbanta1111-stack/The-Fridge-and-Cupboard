@@ -3,7 +3,7 @@ import { z } from "zod";
 import { generateText, Output } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { languageName } from "@/lib/i18n/languages";
+import { LANGUAGE_RULES } from "@/lib/chef-language-prompt";
 
 export const COOK_METHODS = [
   "any",
@@ -100,9 +100,7 @@ export const buildLeftoverMeals = createServerFn({ method: "POST" })
       `TIME: keep each recipe at or under about ${data.maxMinutes} minutes.`,
       `SERVINGS: cook for ${data.servings}.`,
       data.restrictions?.length ? `DIETARY (respect silently): ${data.restrictions.join(", ")}.` : "",
-      data.language && !data.language.toLowerCase().startsWith("en")
-        ? `LANGUAGE: write entirely in ${languageName(data.language)} (locale ${data.language}).`
-        : "LANGUAGE: write in English.",
+      ...LANGUAGE_RULES,
     ]
       .filter(Boolean)
       .join("\n");

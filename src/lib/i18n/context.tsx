@@ -12,7 +12,6 @@ import {
 import { translateStrings } from "./translate.functions";
 import {
   DEFAULT_LANGUAGE,
-  detectLanguage,
   detectMeasurementSystem,
   findLanguage,
   isRtl,
@@ -70,10 +69,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // Detect the user's language + measurement system on first load.
   useEffect(() => {
     cacheRef.current = readCache();
-    const stored = window.localStorage.getItem(LANG_KEY);
     const storedSystem = window.localStorage.getItem(SYSTEM_KEY) as MeasurementSystem | null;
     const locales = navigator.languages?.length ? navigator.languages : [navigator.language || "en"];
-    setLanguageState(stored && findLanguage(stored) ? stored : detectLanguage(locales));
+    setLanguageState(DEFAULT_LANGUAGE);
     setSystemState(storedSystem === "metric" || storedSystem === "imperial" ? storedSystem : detectMeasurementSystem(locales));
     setReady(true);
   }, []);

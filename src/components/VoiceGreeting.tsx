@@ -25,7 +25,7 @@ import {
   getVoicePauseMs,
   isVoicePlaybackClaimed,
 } from "@/lib/voice-assistant";
-import { WELCOME_GREETING, canPrepareWelcomeAudio } from "@/lib/welcome-voice";
+import { WELCOME_GREETING, canPrepareWelcomeAudio, configureWelcomePlayback } from "@/lib/welcome-voice";
 
 import { synthesizeChefVoice } from "@/lib/tts.functions";
 
@@ -48,7 +48,7 @@ import {
   addSpeakerSample,
 } from "@/lib/speaker-profiles";
 import { supabase } from "@/integrations/supabase/client";
-import { resolveUserName, greetingFor, wasNameSkipped, markNameSkipped, setPreferredName, extractName, extractNameCorrection } from "@/lib/user-name";
+import { resolveUserName, markNameSkipped, setPreferredName, extractName, extractNameCorrection } from "@/lib/user-name";
 import { useDietaryPrefs } from "@/hooks/use-dietary-prefs";
 import { useLanguage } from "@/lib/i18n/context";
 import { emitVoiceMeter } from "@/components/VoiceStatusMeter";
@@ -70,20 +70,14 @@ const bundledGreetingAudioUrl = greetingAsset.url;
  *   Mobile:  first user tap  →  unlock audio (sync)  →  welcome  →  mic prompt  →  loop
  *   Desktop: mount            →  request mic         →  welcome  →  loop
  */
-// The opening line depends on who is using the app: a returning account is
-// welcomed back by name; someone new is asked what Chef should call them.
+// Use the exact session opening for everyone; names remain in the separate
+// name prompt and subsequent conversation, not a replacement welcome.
 let GREETING_TEXT = WELCOME_GREETING;
 let greetingPreparedFor = "";
 let greetingAsksName = false;
 async function refreshGreetingText(): Promise<string> {
-  try {
-    const name = await resolveUserName();
-    greetingAsksName = !name && !wasNameSkipped();
-    GREETING_TEXT = name ? greetingFor(name) : greetingAsksName ? greetingFor("") : WELCOME_GREETING;
-  } catch {
-    greetingAsksName = false;
-    GREETING_TEXT = WELCOME_GREETING;
-  }
+  greetingAsksName = false;
+  GREETING_TEXT = WELCOME_GREETING;
   return GREETING_TEXT;
 }
 
@@ -106,8 +100,8 @@ function pickReturnLine(): string {
   lastReturnLine = index;
   return RETURN_LINES[index] ?? "I'm ready whenever you are.";
 }
-// The exact welcome line is synthesized with the ElevenLabs Chef voice. The
-// bundled clip stays as an offline fallback if synthesis ever fails.
+// Always use the reviewed original-voice recording for the session opening.
+// Dynamic replies still use the unchanged conversational synthesis profile.
 let greetingAudioUrl: string | null = null;
 let greetingAudioBase64: string | null = null;
 let greetingPreloadPromise: Promise<string | null> | null = null;
@@ -244,47 +238,19 @@ async function preloadGreetingAudio(): Promise<string | null> {
   greetingPreparedFor = wanted;
   if (greetingAudioUrl) return greetingAudioUrl;
   if (greetingPreloadPromise) return greetingPreloadPromise;
-  markVoiceTiming("preload greeting: fetch start");
+  markVoiceTiming("preload greeting: recording ready");
   logVoiceStage("voice configuration loaded", { greeting: GREETING_TEXT });
   logVoiceStage("greeting requested", { source: "preload" });
-  greetingPreloadPromise = (async () => {
-    try {
-      const res = await synthesizeChefVoice({ data: { text: GREETING_TEXT } });
-      if (res?.audio) {
-        greetingPreloadError = null;
-        greetingAudioBase64 = res.audio;
-        const audioResult = audioFromBase64(res.audio);
-        greetingAudioUrl = audioResult.url;
-        greetingAudioBlobSize = audioResult.blobSize;
-        greetingAudioUrlCreated = audioResult.urlCreated;
-        if (audioResult.error) greetingPreloadError = audioResult.error;
-        markVoiceTiming(`preload greeting: audio ready (${audioResult.blobSize ?? "?"} bytes)`);
-        logVoiceStage("ElevenLabs audio received", {
-          kind: "greeting",
-          bytes: audioResult.blobSize,
-        });
-        return greetingAudioUrl;
-      }
-      greetingPreloadError = res?.error || "ElevenLabs returned no greeting audio";
-      markVoiceTiming(`preload greeting: FAILED (${greetingPreloadError})`);
-    } catch (err) {
-      greetingPreloadError = exactError(err);
-      console.error("[voice] greeting preload failed", err);
-      markVoiceTiming(`preload greeting: THREW (${greetingPreloadError})`);
-    }
-    greetingPreloadPromise = null;
-    // Offline / synthesis failure: fall back to the bundled welcome clip so
-    // the assistant still speaks and the listening loop still starts.
-    greetingAudioUrl = bundledGreetingAudioUrl;
-    return greetingAudioUrl;
-  })();
+  greetingPreloadError = null;
+  greetingAudioUrl = bundledGreetingAudioUrl;
+  greetingAudioBlobSize = greetingAsset.size;
+  greetingAudioUrlCreated = "yes";
+  greetingPreloadPromise = Promise.resolve(greetingAudioUrl);
   return greetingPreloadPromise;
 }
 
-// Kick off the ElevenLabs greeting fetch at module import so the audio is
-// already in flight (or fully cached) by the time <VoiceGreeting /> mounts
-// and the fridge intro finishes. Cuts the perceived startup delay from
-// tens of seconds down to whatever the browser needs to play the cached MP3.
+// Prepare the reviewed recording without a fresh synthesis request or changing
+// the singleton audio source while another playback owns it.
 if (typeof window !== "undefined") {
   try {
     void preloadGreetingAudio();
@@ -637,6 +603,7 @@ export function VoiceGreeting() {
           audio.defaultMuted = false;
           audio.src = audioResult.url;
           audio.playbackRate = getVoiceRate();
+          audio.preservesPitch = true;
 
           audio.preload = "auto";
           audio.setAttribute("playsinline", "");
@@ -1194,9 +1161,9 @@ export function VoiceGreeting() {
               registerVoiceAudio(audio);
               audioRef.current = audio;
               audio.muted = false;
-              audio.volume = 0.82;
               audio.defaultMuted = false;
               audio.src = url;
+              configureWelcomePlayback(audio);
               audio.preload = "auto";
               audio.setAttribute("playsinline", "");
               (audio as any).playsInline = true;
@@ -1386,9 +1353,9 @@ export function VoiceGreeting() {
         registerVoiceAudio(audio);
         audioRef.current = audio;
         audio.muted = false;
-        audio.volume = 0.82;
         audio.defaultMuted = false;
         audio.src = url;
+        configureWelcomePlayback(audio);
         audio.preload = "auto";
         audio.setAttribute("playsinline", "");
         (audio as any).playsInline = true;
@@ -1550,6 +1517,12 @@ export function VoiceGreeting() {
         audio.setAttribute("playsinline", "");
         (audio as any).playsInline = true;
         audio.src = url;
+        if (pending.kind === "greeting") configureWelcomePlayback(audio);
+        else {
+          audio.defaultPlaybackRate = getVoiceRate();
+          audio.playbackRate = getVoiceRate();
+          audio.preservesPitch = true;
+        }
         try {
           audio.load();
         } catch {}

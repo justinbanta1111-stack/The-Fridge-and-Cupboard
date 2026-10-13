@@ -3,7 +3,7 @@ import { z } from "zod";
 import { generateText, Output } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { languageName } from "@/lib/i18n/languages";
+import { LANGUAGE_RULES } from "@/lib/chef-language-prompt";
 import { EXPERIENCE_RULES } from "@/lib/chef-experiences-prompt";
 
 const ReactInput = z.object({
@@ -63,9 +63,7 @@ export const reactToScan = createServerFn({ method: "POST" })
       ...EXPERIENCE_RULES,
       "End with ONE short natural question that helps them decide — for example whether they want something quick, healthy, or comforting, or which ingredient they want to build around. Put that question in the 'question' field, not in 'reaction'.",
 
-      data.language && !data.language.toLowerCase().startsWith("en")
-        ? `LANGUAGE: write entirely in ${languageName(data.language)} (locale ${data.language}).`
-        : "LANGUAGE: write in English.",
+      ...LANGUAGE_RULES,
       data.restrictions?.length ? `DIETARY (respect silently): ${data.restrictions.join(", ")}.` : "",
     ]
       .filter(Boolean)
