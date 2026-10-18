@@ -61,7 +61,7 @@ import { noteInterruption } from "@/lib/interruption-politeness";
 import { isNativeApp } from "@/lib/native-runtime";
 import { hasConsent, grantConsent } from "@/lib/permissions";
 
-import greetingAsset from "@/assets/chef-welcome-relaxed.mp3.asset.json";
+import greetingAsset from "@/assets/chef-full-opening-v2.mp3.asset.json";
 const bundledGreetingAudioUrl = greetingAsset.url;
 
 /**
