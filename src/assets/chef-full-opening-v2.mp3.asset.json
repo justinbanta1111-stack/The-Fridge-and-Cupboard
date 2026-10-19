@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "asset_id": "74b241f2-1dbe-4529-8fe1-584a2f40f958",
+  "asset_id": "f74f9c2d-39b1-4a42-8afa-a3f34e11a3da",
   "project_id": "caae737c-6f5c-4516-bf16-adb295f200c9",
-  "url": "/__l5e/assets-v1/74b241f2-1dbe-4529-8fe1-584a2f40f958/chef-opening-warm-20261019.mp3",
-  "r2_key": "a/v1/caae737c-6f5c-4516-bf16-adb295f200c9/74b241f2-1dbe-4529-8fe1-584a2f40f958/chef-opening-warm-20261019.mp3",
-  "original_filename": "chef-opening-warm-20261019.mp3",
-  "size": 15377,
+  "url": "/__l5e/assets-v1/f74f9c2d-39b1-4a42-8afa-a3f34e11a3da/chef-opening-gentle-20261019b.mp3",
+  "r2_key": "a/v1/caae737c-6f5c-4516-bf16-adb295f200c9/f74f9c2d-39b1-4a42-8afa-a3f34e11a3da/chef-opening-gentle-20261019b.mp3",
+  "original_filename": "chef-opening-gentle-20261019b.mp3",
+  "size": 15482,
   "content_type": "audio/mpeg",
-  "created_at": "2026-10-19T17:16:43Z"
+  "created_at": "2026-10-19T17:22:57Z"
 }
